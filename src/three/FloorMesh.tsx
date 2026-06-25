@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import { CM_TO_WORLD, Room, Surface, TileType } from '../model/types';
-import { boundingBox } from '../model/geometry';
+import { boundingBox, nearestEdge } from '../model/geometry';
 import { useStore } from '../store/projectStore';
 import { useSurfaceTexture } from './useSurfaceTexture';
 
@@ -12,11 +12,16 @@ interface Props {
   tileTypes: TileType[];
 }
 
+// alaprajzon ezen a távolságon (cm) belül a padlóra duplázva ÚJ csúcspont kerül az élre
+const EDGE_INSERT_CM = 25;
+
 /** Tetszőleges alakú padló háromszögelve, a padló-textúrával. */
 export function FloorMesh({ room, surface, tileTypes }: Props) {
   const texture = useSurfaceTexture(surface, tileTypes);
   const selectSurface = useStore((s) => s.selectSurface);
   const openSurfaceEditor = useStore((s) => s.openSurfaceEditor);
+  const insertRoomVertex = useStore((s) => s.insertRoomVertex);
+  const viewMode = useStore((s) => s.viewMode);
 
   const geometry = useMemo(() => {
     const poly = room.floorPolygon;
@@ -48,6 +53,15 @@ export function FloorMesh({ room, surface, tileTypes }: Props) {
       }}
       onDoubleClick={(e: ThreeEvent<MouseEvent>) => {
         e.stopPropagation();
+        // alaprajzon, ha él közelében duplázunk → új csúcspont; egyébként csempe-szerkesztő
+        if (viewMode === 'plan') {
+          const p = { x: e.point.x / CM_TO_WORLD, y: e.point.z / CM_TO_WORLD };
+          const ne = nearestEdge(room.floorPolygon, p);
+          if (ne.distance <= EDGE_INSERT_CM) {
+            insertRoomVertex(room.id, ne.index, Math.round(p.x), Math.round(p.y));
+            return;
+          }
+        }
         openSurfaceEditor(surface.id);
       }}
     >

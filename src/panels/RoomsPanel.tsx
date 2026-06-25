@@ -18,8 +18,6 @@ export function RoomsPanel() {
 
   return (
     <div className="panel">
-      <h3>Szobák</h3>
-
       <div className="form-row">
         <label className="muted">Téglalap (cm)</label>
       </div>

@@ -1,6 +1,13 @@
 import { Surface, SubRegion, TileType } from '../model/types';
+import { boundingBox } from '../model/geometry';
 import { getGenerator } from '../patterns/registry';
 import { pickImageUrl } from './tilePicker';
+
+/** Egy alterület befoglaló téglalapja a felület (u,v) terében (cm). */
+export function subRegionBBox(sub: SubRegion) {
+  const bb = boundingBox(sub.polygon);
+  return { u: bb.minX, v: bb.minY, w: bb.w, h: bb.h };
+}
 
 /** Egy lerakott csempe a felület (u,v) terében (cm), KÖZÉPPONT + elforgatás alapon. */
 export interface CellTile {
@@ -27,7 +34,7 @@ export function subRegionTiles(sub: SubRegion, tileTypes: TileType[]): CellTile[
   const tw = tile?.widthCm ?? 40;
   const th = tile?.heightCm ?? 40;
   const gen = getGenerator(sub.pattern.generator);
-  const rect = sub.rect;
+  const rect = subRegionBBox(sub);
   const theta = ((sub.pattern.angleDeg ?? 0) * Math.PI) / 180;
   const ctx = { tile: { w: tw, h: th }, params: sub.pattern.params, originOffset: sub.pattern.originOffset };
   const tileTypeIdFor = (cellId: string) => sub.tileOverrides[cellId] ?? sub.pattern.defaultTileTypeId ?? null;
@@ -108,19 +115,26 @@ export function renderSurfaceCanvas(
   ctx.fillStyle = surface.baseColor;
   ctx.fillRect(0, 0, W, H);
 
+  const pathPolygon = (poly: { x: number; y: number }[]) => {
+    ctx.beginPath();
+    poly.forEach((p, i) =>
+      i === 0 ? ctx.moveTo(p.x * ppc, p.y * ppc) : ctx.lineTo(p.x * ppc, p.y * ppc),
+    );
+    ctx.closePath();
+  };
+
   for (const sub of surface.subRegions) {
     const tile = defaultTile(sub, tileTypes);
     const groutCm = (tile?.groutMm ?? 3) / 10;
     const groutColor = tile?.groutColor ?? '#cccccc';
 
     ctx.save();
-    // klippelés a rect-re
-    ctx.beginPath();
-    ctx.rect(sub.rect.u * ppc, sub.rect.v * ppc, sub.rect.w * ppc, sub.rect.h * ppc);
+    // klippelés az alterület POLIGONJÁRA
+    pathPolygon(sub.polygon);
     ctx.clip();
     // fuga háttér
     ctx.fillStyle = groutColor;
-    ctx.fillRect(sub.rect.u * ppc, sub.rect.v * ppc, sub.rect.w * ppc, sub.rect.h * ppc);
+    ctx.fill();
 
     for (const cell of subRegionTiles(sub, tileTypes)) {
       const tt = tileTypes.find((t) => t.id === cell.tileTypeId);

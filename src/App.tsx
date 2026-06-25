@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useStore } from './store/projectStore';
 import { PlanView } from './views/PlanView';
 import { View3D } from './views/View3D';
 import { SurfaceEditor } from './views/SurfaceEditor';
 import { TileLibraryPanel } from './panels/TileLibraryPanel';
 import { RoomsPanel } from './panels/RoomsPanel';
+import { SurfacesPanel } from './panels/SurfacesPanel';
 import { BoxInspector } from './panels/BoxInspector';
+import { CollapsibleGroup } from './ui/CollapsibleGroup';
+import { ErrorBoundary } from './ui/ErrorBoundary';
 
 export default function App() {
   const init = useStore((s) => s.init);
@@ -16,14 +19,14 @@ export default function App() {
   const draftRoom = useStore((s) => s.draftRoom);
   const startDraftRoom = useStore((s) => s.startDraftRoom);
   const cancelDraftRoom = useStore((s) => s.cancelDraftRoom);
-  const addRoom = useStore((s) => s.addRoom);
+  const commitDraftRoom = useStore((s) => s.commitDraftRoom);
+  const height = useStore((s) => s.draftHeightCm);
+  const setHeight = useStore((s) => s.setDraftHeight);
   const addBox = useStore((s) => s.addBox);
   const undo = useStore((s) => s.undo);
   const redo = useStore((s) => s.redo);
   const editingSurfaceId = useStore((s) => s.editingSurfaceId);
   const rooms = useStore((s) => s.project.rooms);
-
-  const [height, setHeight] = useState(270);
 
   useEffect(() => {
     init();
@@ -31,12 +34,7 @@ export default function App() {
 
   if (!loaded) return <div className="loading">Betöltés…</div>;
 
-  const finishRoom = () => {
-    if (draftRoom && draftRoom.length >= 3) {
-      addRoom(draftRoom, height);
-    }
-    cancelDraftRoom();
-  };
+  const finishRoom = () => commitDraftRoom();
 
   return (
     <div className="app">
@@ -57,7 +55,9 @@ export default function App() {
         )}
         {planTool === 'draw-room' && (
           <div className="draw-controls">
-            <span className="muted">{draftRoom?.length ?? 0} pont — kattints az alaprajzon</span>
+            <span className="muted">
+              {draftRoom?.length ?? 0} pont — húzd a falakat (Shift = egyenes), a kezdőpontra kattintva záródik
+            </span>
             <label>Magasság</label>
             <input type="number" value={height} style={{ width: 64 }} onChange={(e) => setHeight(+e.target.value)} />
             <span className="muted">cm</span>
@@ -77,11 +77,18 @@ export default function App() {
 
       <div className="main">
         <aside className="sidebar">
-          <RoomsPanel />
-          <TileLibraryPanel />
+          <CollapsibleGroup title="Szobák">
+            <RoomsPanel />
+          </CollapsibleGroup>
+          <CollapsibleGroup title="Oldalak" defaultOpen={false}>
+            <SurfacesPanel />
+          </CollapsibleGroup>
+          <CollapsibleGroup title="Csempék">
+            <TileLibraryPanel />
+          </CollapsibleGroup>
         </aside>
         <main className="viewport">
-          {viewMode === 'plan' ? <PlanView /> : <View3D />}
+          <ErrorBoundary>{viewMode === 'plan' ? <PlanView /> : <View3D />}</ErrorBoundary>
           <div className="hint">
             {viewMode === 'plan'
               ? 'Tipp: dobozokat húzással mozgathatsz. Dupla katt egy felületre = szerkesztés.'

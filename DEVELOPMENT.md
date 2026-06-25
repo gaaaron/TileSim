@@ -65,9 +65,10 @@ three/
   pose.ts            # surfacePose(): felület → 3D pozíció + kvaternió (JOBBKEZES bázis!)
   useSurfaceTexture.ts # Surface → élő THREE.CanvasTexture (memoizált)
   SurfacePlane.tsx   # fal / doboz-oldal mint textúrázott plane (Front/Back/DoubleSide)
-  FloorMesh.tsx      # tetszőleges padló-poligon háromszögelve, textúrázva
-  BoxGroup.tsx       # doboz 6 oldala + plan-nézeti húzás (+ kamera-lock húzás közben)
+  FloorMesh.tsx      # padló-poligon háromszögelve + textúra; plan: él-közeli dupla katt → új csúcspont
+  BoxGroup.tsx       # doboz 6 oldala + plan-nézeti húzás (+ kamera-lock + beginDrag/endDrag)
   SceneContents.tsx  # a megosztott 3D tartalom (padlók, falak, dobozok)
+  RoomEditingLayer.tsx # alaprajzi szoba-RAJZOLÁS + csúcspont-szerkesztés (lásd 9.3)
 views/
   PlanView.tsx       # alaprajz: ortografikus felülnézet, szoba-rajzolás
   View3D.tsx         # 3D: perspektív + OrbitControls + fények
@@ -75,7 +76,11 @@ views/
 panels/
   RoomsPanel.tsx     # téglalap-szoba gyorslétrehozás + szoba-lista
   TileLibraryPanel.tsx # csempetípusok + képfeltöltés + fuga
+  SurfacesPanel.tsx  # „Oldalak" csoport: minden felület + láthatóság-checkbox + sorra katt = szerkesztő
   BoxInspector.tsx   # kijelölt doboz méret/pozíció popup
+ui/
+  CollapsibleGroup.tsx # összecsukható oldalpanel-csoport (akkordeon)
+  ErrorBoundary.tsx  # egy nézet hibája (pl. nincs WebGL) ne döntse le az egész appot
 store/projectStore.ts # zustand store (állapot + akciók + undo/redo + autosave)
 db/storage.ts         # IndexedDB: projekt + kép-blobok, hydrateImageUrls()
 App.tsx, main.tsx, styles.css, vite-env.d.ts
@@ -93,8 +98,12 @@ App.tsx, main.tsx, styles.css, vite-env.d.ts
 - **`Surface`** (származtatott geometria, lásd 6.1): `{ id, kind:'floor'|'wall'|'box-face', label,
   widthCm, heightCm, transform: SurfaceTransform, subRegions: SubRegion[], baseColor }`.
 - **`SurfaceTransform`**: `{ origin, uAxis, vAxis, normal }` (origin világ-méterben, a tengelyek egységvektorok).
-- **`SubRegion`**: `{ id, rect:{u,v,w,h} (cm a felület terében), pattern: PatternConfig,
-  tileOverrides: Record<cellId, tileTypeId> }`.
+- **`SubRegion`**: `{ id, polygon: Vec2[] (cm a felület (u,v) terében; x=u, y=v), pattern: PatternConfig,
+  tileOverrides: Record<cellId, tileTypeId> }`. Az alterület **tetszőleges poligon** (nem csak téglalap).
+  A befoglaló téglalapot a `subRegionBBox(sub)` adja. Régi `rect`-es mentés betöltéskor 4-csúcsú
+  poligonná migrálódik (store `init`).
+- **`Surface.outline?`**: a felület VALÓDI alakja a (u,v) térben (cm), ha nem téglalap (pl. L-padló).
+  A `floorSurface` állítja be a szoba poligonjából; a szerkesztő ezzel sötétíti a körvonalon kívüli részt.
 - **`PatternConfig`**: `{ generator:'grid'|'offset'|'herringbone', defaultTileTypeId, angleDeg,
   originOffset:{x,y}, params: Record<string,number> }`.
 - **`Project`**: `{ id, name, tileTypes[], rooms[], boxes[], surfaceData: Record<surfaceId, SubRegion[]> }`.
@@ -146,7 +155,8 @@ A generátorok **abutáló** (hézag nélküli) csempéket adnak. A **fugát a r
 
 `subRegionTiles(sub, tileTypes): CellTile[]` — a megjelenítés/kijelölés közös forrása.
 `CellTile = { cellId, cx, cy, w, h, rotationDeg, tileTypeId }` ahol **`cx,cy` = a csempe KÖZÉPPONTJA**
-a felület `(u,v)` terében (cm). Lépések:
+a felület `(u,v)` terében (cm). Az itteni „rect" = az alterület **poligonjának befoglalója**
+(`subRegionBBox(sub)`). Lépések:
 1. Az alapcsempe mérete a `defaultTileTypeId`-ból (fallback 40×40).
 2. Ha `angleDeg ≈ 0`: a generátort a rect méretére hívjuk, a rect-et metsző cellákat tartjuk, és
    sarok→középpont konverzió.
@@ -156,7 +166,7 @@ a felület `(u,v)` terében (cm). Lépések:
 
 `renderSurfaceCanvas(surface, tileTypes, images)`:
 - Canvas mérete `widthCm*ppc × heightCm*ppc` (`ppc` = pixel/cm, max ~2048 px-re skálázva).
-- Felületenként/alterületenként: klippelés a rect-re, fuga-háttér kitöltés, majd minden cellára:
+- Felületenként/alterületenként: klippelés az alterület **poligonjára**, fuga-háttér kitöltés, majd minden cellára:
   `translate(cx,cy) → rotate(rotationDeg) → drawImage középre igazítva, grout/2 behúzással`.
   Kép hiányában tömör szín.
 - Visszaad `{canvas, ppc}`. Hívó `THREE.CanvasTexture`-be csomagolja (`flipY=false`, sRGB).
@@ -187,13 +197,14 @@ Egy `planeGeometry` a `surfacePose` szerint elhelyezve, `useSurfaceTexture` map-
 ### 8.4 `FloorMesh.tsx`
 A padló-poligont `THREE.ShapeUtils.triangulateShape`-pel háromszögeli, a vertexeket
 `(x*cm, 0, z*cm)`-re teszi, a UV-t a befoglaló téglalapra normálja (`(x-minX)/w, (z-minZ)/h`).
-`DoubleSide`. Klikk/duplaklikk = felület kijelölés/szerkesztés.
+`DoubleSide`. Klikk = felület kijelölés. **Dupla katt:** plan nézetben, ha él-közeli (`nearestEdge`
+≤ `EDGE_INSERT_CM`) → `insertRoomVertex` (új csúcspont), egyébként csempe-szerkesztő nyit.
 
 ### 8.5 `BoxGroup.tsx`
 A doboz 6 `SurfacePlane` oldala egy `<group>`-ban. **Plan nézetben húzható:** `pointerdown`→`pointerup`
 a földsíkra (`y=0`) raycastol, és frissíti `box.pos.x/z`-t. **Kamera-lock (gotcha):** húzás kezdetén
 `controls.enabled=false` (a `useThree(s=>s.controls)`-ból), `pointerup`-nál vissza `true` — különben a
-`MapControls` is pásztázna a húzással. Kijelölt dobozhoz `BoxOutline` drótváz.
+`MapControls` is pásztázna a húzással. `beginDrag()/endDrag()` → egy undo-lépés / húzás. Kijelölt dobozhoz `BoxOutline` drótváz.
 
 ### 8.6 `SceneContents.tsx`
 A megosztott tartalom (mindkét nézet használja, `mode:'plan'|'3d'` prop). Szobánként `FloorMesh` + falak
@@ -210,15 +221,53 @@ pontokat (cm-re kerekítve); a vázlat-poligon `drei <Line>` + gömbök.
 ### 9.2 `View3D.tsx`
 Perspektív kamera + `OrbitControls` + `ambient/hemisphere/directional` fények.
 
+### 9.3 `RoomEditingLayer.tsx` (alaprajzi rajzolás + csúcspont-szerkesztés)
+A PlanView Canvas-án belül fut. Világ↔képernyő: `screenToCm()` a kamerából raycastol a földsíkra
+(ortho/perspektív független). A húzások **window-szintű** `pointermove/pointerup` listenerekkel mennek
+(robusztusabb, mint az R3F hit-routing); a húzás magja egy ref-ben (`core`) lakik, amit a Shift-billentyű
+listenerei is hívhatnak (élő „kiegyenesítés").
+- **Rajzolás** (`planTool==='draw-room'`): a földsík `onPointerDown`-ja új pontot tesz le ÉS azonnal húzni
+  kezdi → a fal a lenyomásra látszik, a kurzort követi, felengedésre rögzül. **Shift**: a szakasz a
+  `prev` ponthoz képest 45°-os rácsra ugrik (`snapAngle`). A kezdőpont közelébe (`CLOSE_CM`) kattintva a
+  poligon záródik (`commitDraftRoom`). A `MapControls`-t húzás idejére kikapcsoljuk.
+- **Szerkesztés** (`select` mód): minden szoba kontúr (`<Line>`) + falhossz-címkék (`<Html>`) +
+  **mozgatható csúcspont-gömbök**. Csúcspont húzása → `moveRoomVertex` (egy undo / húzás: `beginDrag/endDrag`).
+  Csúcsponton kattintás (mozgás nélkül) → **context menu** (`<Html>`) „Pont törlése" gombbal (`deleteRoomVertex`,
+  min. 3 pont). **Él dupla-kattintás → új csúcspont**: ezt a `FloorMesh.onDoubleClick` kezeli (megbízható nagy
+  találati felület): plan nézetben, ha a kattintás `EDGE_INSERT_CM`-en belül van egy élhez → `insertRoomVertex`,
+  egyébként a csempe-szerkesztő nyílik. A magasságot a toolbar állítja (`draftHeightCm`).
+
 ## 10. Felület-szerkesztő (`views/SurfaceEditor.tsx`)
-Modal. A felületet kiterítve egy `<canvas>`-ra rajzolja (`renderSurfaceCanvas` → `drawImage` skálázva),
-fölé az alterület-kereteket, a cella-rácsot és a kijelölést. Két mód:
-- **`region`**: téglalap húzása → `addSubRegion`.
-- **`cells`**: klikk = egy cella toggle, húzás = gumikeret (a cella **középpontja** alapján).
-  A cellák **elforgatottak** lehetnek (`rotationDeg`), ezért a találat-vizsgálat a pontot a cella lokális
-  keretébe transzformálja (`-rotationDeg` forgatás, majd `|lx|≤w/2 && |ly|≤h/2`).
+Modal, sima 2D `<canvas>` (NEM WebGL → akkor is működik, ha a 3D nézet hibázik). A felület textúráját a
+`renderSurfaceCanvas` adja (`drawImage` skálázva), fölé rajzolódnak a poligonok/cellák/kijelölés. Ha a
+felületnek van `outline`-ja (pl. L-padló), a körvonalon kívüli rész **elsötétül** (even-odd kitöltés) →
+a valódi alak látszik (mint az alaprajzon). Két mód:
+- **`region`** (Alterületek) — az alterület **poligon**, az alaprajzi szoba-szerkesztéshez hasonlóan:
+  - üres helyre húzva **új** (téglalap-)alterület (`addSubRegion` poligonnal),
+  - **csúcspont húzása** = vertex mozgatás (`moveSubRegionVertex`),
+  - **belül húzva** az egész alterület mozog (`translatePoly` + `updateSubRegionPolygon`),
+  - **dupla katt egy élre** → új csúcspont (`nearestEdge` + `insertSubRegionVertex`),
+  - **csúcspontra kattintva** (mozgás nélkül) → context menu „Pont törlése" (`deleteSubRegionVertex`, ≥3).
+  A `beginDrag`-et csak az első tényleges mozdulatnál hívjuk (≥2 cm) → klikk ≠ undo-lépés; húzás = egy lépés.
+- **`cells`**: klikk = egy cella toggle, húzás = gumikeret (a cella **középpontja** alapján). A kijelölés a
+  **poligonra van vágva** (`pointInPolygon`). A cellák elforgatottak lehetnek (`rotationDeg`), ezért a
+  találat a pontot a cella lokális keretébe transzformálja.
+A `renderSurfaceCanvas` és a cella-réteg az alterületet a **poligonjára klippeli** (nem a befoglalóra), így
+nem-téglalap alterületen is pontosan jelenik meg.
 A minta-vezérlők: generátor választó (halszálkánál auto 45°), alap csempe, **Elforgatás csúszka + 0/30/45/90°
 gombok** (`angleDeg`), generátor-paraméterek (`paramSpec`), `originOffset`. Cella-kijelöléshez csempe-hozzárendelés.
+
+## 10b. Oldalpanel (App sidebar) + felület-láthatóság
+- A bal panel elemei **`CollapsibleGroup`** akkordeonokban: „Szobák" (`RoomsPanel`), „Oldalak"
+  (`SurfacesPanel`, alapból csukva), „Csempék" (`TileLibraryPanel`). A panelek belső `<h3>` címe
+  megszűnt — a címet a csoport adja.
+- **Felület-láthatóság:** `project.surfaceHidden: Record<surfaceId, boolean>`. A `surfaces()` szelektor
+  `hidden` mezőt is ad. A `SceneContents` a `!s.hidden` felületeket **nem rendereli** (fal/padló/doboz-oldal).
+  Kapcsolók: a `SurfacesPanel` minden sorában checkbox (`toggleSurfaceHidden`), és a `SurfaceEditor`
+  fejlécében „Látható" checkbox. Mivel rejtett fal 3D-ben nem kattintható, a szerkesztője az „Oldalak"
+  panel sorára kattintva (`openSurfaceEditor`) nyitható.
+- **ErrorBoundary:** a `App.viewport` a `PlanView/View3D`-t `ErrorBoundary`-be csomagolja, így ha a WebGL
+  context nem hozható létre, csak a nézet helyén jelenik meg hibaüzenet (a sidebar/UI marad).
 
 ## 11. Állapot és tárolás
 
@@ -227,6 +276,12 @@ zustand store. Fő mezők: `project`, `viewMode`, `planTool`, `draftRoom`, kijel
 (`selectedBoxId/SurfaceId`, `editingSurfaceId`, `selectedSubRegionId`, `selectedCells`), `past/future` (undo).
 - **`mutate(fn)`**: minden projekt-módosítás ezen megy át → history push (max 50) + debounce-olt autosave (400 ms).
 - **`surfaces()`**: származtatott felületek + a `surfaceData` subRegion-jei.
+- **Húzás-koalescálás:** `beginDrag()` egyszer pillanatképet ment és bekapcsolja a modul-szintű
+  `suppressHistory`-t; közben a `mutate` NEM rak history-ba; `endDrag()` kikapcsolja. → folyamatos húzás =
+  egy undo-lépés (doboz-mozgatás, alterület move/resize, csúcspont-húzás).
+- **Rajzolás/szerkesztés akciók:** `draftHeightCm`, `updateDraftPoint`, `commitDraftRoom`,
+  `moveRoomVertex`, `insertRoomVertex`, `deleteRoomVertex` (≥3 pont), `updateSubRegionPolygon`,
+  `move/insert/deleteSubRegionVertex`.
 - **Dev hook:** `import.meta.env.DEV` esetén `window.store = useStore` (böngészős teszthez; produkcióból kimarad).
 
 ### 11.2 `db/storage.ts` (IndexedDB, `idb`)
@@ -248,6 +303,17 @@ Két store: `projects` (JSON, url-ek nélkül — `stripUrls`) és `images` (Blo
 7. **R3F szintetikus események tesztben:** a kézzel kreált pointer/MouseEvent-nek kell `view: window`,
    különben az R3F raycast nem fut le (lásd 13).
 8. **`import.meta.env` build hiba:** `src/vite-env.d.ts`-ben `/// <reference types="vite/client" />`.
+9. **Él dupla-katt vékony mesh-en megbízhatatlan:** a vékony „él-doboz" raycastja gyakran mellément →
+   az új-csúcspont beszúrást a `FloorMesh.onDoubleClick` (nagy találati felület) végzi `nearestEdge`-dzsel.
+   (Szintetikus `dblclick` teszthez kell előtte klikk-szekvencia, mert az R3F a click-állapotból dolgozik.)
+10. **Drag a hit-routing helyett window-listenerrel:** a csúcspont/rajzpont húzását `window`
+    `pointermove/pointerup` kezeli + saját `screenToCm` raycast — mert az R3F hit-routing elveszti a célt,
+    ha a kurzor lecsúszik az objektumról (RoomEditingLayer).
+11. **Modul-szintű `suppressHistory`:** a `beginDrag/endDrag` egy modul-változót billent, NEM store-mezőt
+    (a `mutate` szinkron olvassa); így a húzás közbeni sok `set` egyetlen undo-lépés marad.
+12. **WebGL context kimerülés / fehér képernyő:** sok HMR-reload után a böngésző blokkolhatja az új WebGL
+    contextet → a `Canvas` dob. Az `ErrorBoundary` (App.viewport) elkapja, így csak a nézet hibázik, az app
+    nem. (Dev tipp: ha tesztben „context loss and was blocked" jön, indíts friss preview-böngészőt.)
 
 ## 13. Tesztelés és böngészős verifikáció
 
@@ -284,3 +350,19 @@ Changelog-ot. A dokumentáció magyarul készül; a kód-azonosítók angolul ma
 - **2026-06-25** — Minta-elforgatás (`PatternConfig.angleDeg`): a `subRegionTiles` középpont+forgatás alapú
   `CellTile`-t ad, a renderer és a szerkesztő forgatottan rajzol/talál; UI csúszka + 0/30/45/90° gombok;
   halszálka kiválasztásakor auto 45°. Ekkor jött létre ez a `DEVELOPMENT.md` és a dokumentációs szabály.
+- **2026-06-25** — Alterület **mozgatás + átméretezés** a felület-szerkesztőben (8 fogantyú, `updateSubRegionRect`
+  — később a poligon-alterület váltotta fel, lásd lentebb),
+  + `beginDrag/endDrag` húzás-koalescálás (alterület és doboz egy undo-lépés / húzás).
+- **2026-06-25** — Alaprajzi **szoba-rajzolás újragondolva** (`RoomEditingLayer`): húzd-a-falat élő előnézet +
+  felengedésre rögzítés, falhossz-címkék, **Shift** = 45°-os kiegyenesítés, kezdőpontra kattintva záródás;
+  meglévő szoba **csúcspontjai mozgathatók**, él **dupla-kattintásra új pont** (`FloorMesh`), csúcsponton
+  kattintva **context menu „Pont törlése"**. Új store-akciók + `nearestEdge` geometria-helper.
+- **2026-06-25** — **Felület-láthatóság + összecsukható oldalpanel:** `project.surfaceHidden`,
+  `setSurfaceHidden/toggleSurfaceHidden`, a `SceneContents` kihagyja a rejtett felületeket; új
+  `CollapsibleGroup` akkordeonok (Szobák/Oldalak/Csempék), `SurfacesPanel` (felület-lista checkboxszal +
+  sorra katt = szerkesztő), „Látható" checkbox a `SurfaceEditor` fejlécében. Új `ErrorBoundary` a nézet köré.
+- **2026-06-25** — **Alterület = poligon + felület valódi alakja a szerkesztőben:** `SubRegion.rect` →
+  `polygon: Vec2[]` (migrációval); `Surface.outline` (pl. L-padló) elsötétítve a szerkesztőben; a render a
+  poligonra klippel. Az alterület szerkesztése az alaprajzihoz hasonló: csúcs-mozgatás, él-dupla-katt = új
+  pont, csúcs-context-menu = törlés, belül-húzás = mozgatás. Új store-akciók
+  (`updateSubRegionPolygon`, `move/insert/deleteSubRegionVertex`) + `pointInPolygon` helper.

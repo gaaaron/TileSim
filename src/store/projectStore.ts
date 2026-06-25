@@ -32,6 +32,7 @@ function emptyProject(): Project {
     rooms: [],
     boxes: [],
     surfaceData: {},
+    surfaceHidden: {},
   };
 }
 
@@ -40,6 +41,7 @@ interface State {
   viewMode: ViewMode;
   planTool: PlanTool;
   draftRoom: { x: number; y: number }[] | null;
+  draftHeightCm: number;
   selectedBoxId: string | null;
   selectedSurfaceId: string | null;
   editingSurfaceId: string | null;
@@ -78,7 +80,14 @@ interface State {
   removeRoom: (id: string) => void;
   startDraftRoom: () => void;
   addDraftPoint: (x: number, y: number) => void;
+  updateDraftPoint: (i: number, x: number, y: number) => void;
+  setDraftHeight: (h: number) => void;
+  commitDraftRoom: () => void;
   cancelDraftRoom: () => void;
+  // meglévő szoba csúcspontjainak szerkesztése
+  moveRoomVertex: (roomId: string, index: number, x: number, y: number) => void;
+  insertRoomVertex: (roomId: string, edgeIndex: number, x: number, y: number) => void;
+  deleteRoomVertex: (roomId: string, index: number) => void;
 
   // boxes
   addBox: () => void;
@@ -87,11 +96,16 @@ interface State {
 
   // surfaces
   getSubRegions: (surfaceId: string) => SubRegion[];
-  addSubRegion: (surfaceId: string, rect: SubRegion['rect']) => string;
+  addSubRegion: (surfaceId: string, polygon: SubRegion['polygon']) => string;
   updateSubRegionPattern: (surfaceId: string, subId: string, patch: Partial<PatternConfig>) => void;
-  updateSubRegionRect: (surfaceId: string, subId: string, rect: SubRegion['rect']) => void;
+  updateSubRegionPolygon: (surfaceId: string, subId: string, polygon: SubRegion['polygon']) => void;
+  moveSubRegionVertex: (surfaceId: string, subId: string, index: number, x: number, y: number) => void;
+  insertSubRegionVertex: (surfaceId: string, subId: string, edgeIndex: number, x: number, y: number) => void;
+  deleteSubRegionVertex: (surfaceId: string, subId: string, index: number) => void;
   removeSubRegion: (surfaceId: string, subId: string) => void;
   assignTileToCells: (surfaceId: string, subId: string, cellIds: string[], tileTypeId: string) => void;
+  setSurfaceHidden: (surfaceId: string, hidden: boolean) => void;
+  toggleSurfaceHidden: (surfaceId: string) => void;
 
   // húzás-koalescálás (egy undo-lépés / húzás): mozgatás, átméretezés
   beginDrag: () => void;
@@ -129,6 +143,7 @@ export const useStore = create<State>((set, get) => {
     viewMode: 'plan',
     planTool: 'select',
     draftRoom: null,
+    draftHeightCm: 270,
     selectedBoxId: null,
     selectedSurfaceId: null,
     editingSurfaceId: null,
@@ -150,6 +165,22 @@ export const useStore = create<State>((set, get) => {
         project.boxes ??= [];
         project.rooms ??= [];
         project.tileTypes ??= [];
+        project.surfaceHidden ??= {};
+        // migráció: régi téglalap-alterületek → poligon
+        for (const list of Object.values(project.surfaceData ?? {})) {
+          for (const sub of list as Array<SubRegion & { rect?: { u: number; v: number; w: number; h: number } }>) {
+            if (!sub.polygon && sub.rect) {
+              const r = sub.rect;
+              sub.polygon = [
+                { x: r.u, y: r.v },
+                { x: r.u + r.w, y: r.v },
+                { x: r.u + r.w, y: r.v + r.h },
+                { x: r.u, y: r.v + r.h },
+              ];
+              delete sub.rect;
+            }
+          }
+        }
       }
       set({ project, loaded: true });
     },
@@ -166,7 +197,11 @@ export const useStore = create<State>((set, get) => {
     surfaces: () => {
       const p = get().project;
       const base = allSurfaces(p.rooms, p.boxes);
-      return base.map((s) => ({ ...s, subRegions: p.surfaceData[s.id] ?? [] }));
+      return base.map((s) => ({
+        ...s,
+        subRegions: p.surfaceData[s.id] ?? [],
+        hidden: !!p.surfaceHidden?.[s.id],
+      }));
     },
 
     addTileType: (name, widthCm, heightCm) => {
@@ -233,7 +268,37 @@ export const useStore = create<State>((set, get) => {
       }),
     startDraftRoom: () => set({ planTool: 'draw-room', draftRoom: [] }),
     addDraftPoint: (x, y) => set({ draftRoom: [...(get().draftRoom ?? []), { x, y }] }),
+    updateDraftPoint: (i, x, y) =>
+      set((st) => {
+        const d = st.draftRoom ? [...st.draftRoom] : [];
+        if (d[i]) d[i] = { x, y };
+        return { draftRoom: d };
+      }),
+    setDraftHeight: (h) => set({ draftHeightCm: h }),
+    commitDraftRoom: () => {
+      const { draftRoom, draftHeightCm } = get();
+      if (draftRoom && draftRoom.length >= 3) get().addRoom(draftRoom, draftHeightCm);
+      set({ planTool: 'select', draftRoom: null });
+    },
     cancelDraftRoom: () => set({ planTool: 'select', draftRoom: null }),
+    moveRoomVertex: (roomId, index, x, y) =>
+      mutate((p) => {
+        const r = p.rooms.find((x) => x.id === roomId);
+        if (r && r.floorPolygon[index]) r.floorPolygon[index] = { x, y };
+        return p;
+      }),
+    insertRoomVertex: (roomId, edgeIndex, x, y) =>
+      mutate((p) => {
+        const r = p.rooms.find((x) => x.id === roomId);
+        if (r) r.floorPolygon.splice(edgeIndex + 1, 0, { x, y });
+        return p;
+      }),
+    deleteRoomVertex: (roomId, index) =>
+      mutate((p) => {
+        const r = p.rooms.find((x) => x.id === roomId);
+        if (r && r.floorPolygon.length > 3) r.floorPolygon.splice(index, 1);
+        return p;
+      }),
 
     addBox: () =>
       mutate((p) => {
@@ -267,7 +332,7 @@ export const useStore = create<State>((set, get) => {
       }),
 
     getSubRegions: (surfaceId) => get().project.surfaceData[surfaceId] ?? [],
-    addSubRegion: (surfaceId, rect) => {
+    addSubRegion: (surfaceId, polygon) => {
       const id = uid('sub_');
       mutate((p) => {
         const pattern: PatternConfig = {
@@ -278,7 +343,7 @@ export const useStore = create<State>((set, get) => {
           params: {},
         };
         const list = p.surfaceData[surfaceId] ?? (p.surfaceData[surfaceId] = []);
-        list.push({ id, rect, pattern, tileOverrides: {} });
+        list.push({ id, polygon, pattern, tileOverrides: {} });
         return p;
       });
       return id;
@@ -289,10 +354,28 @@ export const useStore = create<State>((set, get) => {
         if (sub) Object.assign(sub.pattern, patch);
         return p;
       }),
-    updateSubRegionRect: (surfaceId, subId, rect) =>
+    updateSubRegionPolygon: (surfaceId, subId, polygon) =>
       mutate((p) => {
         const sub = (p.surfaceData[surfaceId] ?? []).find((s) => s.id === subId);
-        if (sub) sub.rect = rect;
+        if (sub) sub.polygon = polygon;
+        return p;
+      }),
+    moveSubRegionVertex: (surfaceId, subId, index, x, y) =>
+      mutate((p) => {
+        const sub = (p.surfaceData[surfaceId] ?? []).find((s) => s.id === subId);
+        if (sub && sub.polygon[index]) sub.polygon[index] = { x, y };
+        return p;
+      }),
+    insertSubRegionVertex: (surfaceId, subId, edgeIndex, x, y) =>
+      mutate((p) => {
+        const sub = (p.surfaceData[surfaceId] ?? []).find((s) => s.id === subId);
+        if (sub) sub.polygon.splice(edgeIndex + 1, 0, { x, y });
+        return p;
+      }),
+    deleteSubRegionVertex: (surfaceId, subId, index) =>
+      mutate((p) => {
+        const sub = (p.surfaceData[surfaceId] ?? []).find((s) => s.id === subId);
+        if (sub && sub.polygon.length > 3) sub.polygon.splice(index, 1);
         return p;
       }),
     removeSubRegion: (surfaceId, subId) =>
@@ -306,6 +389,15 @@ export const useStore = create<State>((set, get) => {
         if (sub) for (const c of cellIds) sub.tileOverrides[c] = tileTypeId;
         return p;
       }),
+    setSurfaceHidden: (surfaceId, hidden) =>
+      mutate((p) => {
+        p.surfaceHidden ??= {};
+        if (hidden) p.surfaceHidden[surfaceId] = true;
+        else delete p.surfaceHidden[surfaceId];
+        return p;
+      }),
+    toggleSurfaceHidden: (surfaceId) =>
+      get().setSurfaceHidden(surfaceId, !get().project.surfaceHidden?.[surfaceId]),
 
     beginDrag: () => {
       // egyetlen pillanatkép a húzás elejéről, majd a köztes mutációk nem rakódnak history-ba

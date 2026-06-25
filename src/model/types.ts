@@ -83,6 +83,10 @@ export interface Surface {
   subRegions: SubRegion[];
   /** Alap (csempe nélküli) szín, ha nincs subregion. */
   baseColor: string;
+  /** El van-e rejtve a 3D megjelenítésben (származtatott a project.surfaceHidden-ből). */
+  hidden?: boolean;
+  /** A felület VALÓDI alakja a (u,v) térben (cm), ha nem téglalap (pl. L-padló). x=u, y=v. */
+  outline?: Vec2[];
 }
 
 /** Pattern generátor neve. Bővíthető. */
@@ -100,11 +104,11 @@ export interface PatternConfig {
   params: Record<string, number>;
 }
 
-/** Egy alterület a felületen belül (a felület u,v terében, cm). Jelenleg téglalap. */
+/** Egy alterület a felületen belül: tetszőleges POLIGON a felület (u,v) terében (cm). x=u, y=v. */
 export interface SubRegion {
   id: Id;
-  /** Téglalap a felület u,v terében (cm). */
-  rect: { u: number; v: number; w: number; h: number };
+  /** A poligon csúcsai a felület (u,v) terében (cm); x=u, y=v. */
+  polygon: Vec2[];
   pattern: PatternConfig;
   /** Cella-szintű textúra felülírások: cellId → tileTypeId. */
   tileOverrides: Record<string, Id>;
@@ -118,6 +122,8 @@ export interface Project {
   boxes: Box[];
   /** Felület-szerkesztések: surfaceId → SubRegion-ök. A felületek geometriája származtatott. */
   surfaceData: Record<string, SubRegion[]>;
+  /** Elrejtett felületek: surfaceId → true (a 3D megjelenítésből kihagyva). */
+  surfaceHidden: Record<string, boolean>;
 }
 
 export function uid(prefix = ''): Id {

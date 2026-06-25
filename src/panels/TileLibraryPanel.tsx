@@ -16,8 +16,6 @@ export function TileLibraryPanel() {
 
   return (
     <div className="panel">
-      <h3>Csempék</h3>
-
       <div className="form-row">
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Név" />
       </div>

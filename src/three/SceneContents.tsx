@@ -36,10 +36,12 @@ export function SceneContents({ mode }: Props) {
 
       {project.rooms.map((room) => {
         const floor = byId.get(`${room.id}:floor`);
-        const walls = surfaces.filter((s) => s.id.startsWith(`${room.id}:wall:`));
+        const walls = surfaces.filter((s) => s.id.startsWith(`${room.id}:wall:`) && !s.hidden);
         return (
           <group key={room.id}>
-            {floor && <FloorMesh room={room} surface={floor} tileTypes={project.tileTypes} />}
+            {floor && !floor.hidden && (
+              <FloorMesh room={room} surface={floor} tileTypes={project.tileTypes} />
+            )}
             {mode === '3d' &&
               walls.map((w) => <SurfacePlane key={w.id} surface={w} tileTypes={project.tileTypes} />)}
           </group>
@@ -47,7 +49,7 @@ export function SceneContents({ mode }: Props) {
       })}
 
       {project.boxes.map((box) => {
-        const faces = surfaces.filter((s) => s.id.startsWith(`${box.id}:face:`));
+        const faces = surfaces.filter((s) => s.id.startsWith(`${box.id}:face:`) && !s.hidden);
         return (
           <BoxGroup key={box.id} box={box} faces={faces} tileTypes={project.tileTypes} mode={mode} />
         );

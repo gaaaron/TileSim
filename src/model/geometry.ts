@@ -51,7 +51,7 @@ export function boundingBox(poly: Vec2[]) {
   return { minX, minY, maxX, maxY, w: maxX - minX, h: maxY - minY };
 }
 
-/** A padló felülete egy szobához. UV = a befoglaló téglalap (cm). */
+/** A padló felülete egy szobához. UV = a befoglaló téglalap (cm); az `outline` a valódi alak. */
 export function floorSurface(room: Room): Surface {
   const bb = boundingBox(room.floorPolygon);
   const transform: SurfaceTransform = {
@@ -69,6 +69,8 @@ export function floorSurface(room: Room): Surface {
     transform,
     subRegions: [],
     baseColor: '#cfcabb',
+    // a padló valódi alakja a felület (u,v) terében: u = x − minX, v = y − minY
+    outline: room.floorPolygon.map((p) => ({ x: p.x - bb.minX, y: p.y - bb.minY })),
   };
 }
 
@@ -192,4 +194,36 @@ export function surfaceToWorld(t: SurfaceTransform, u: number, v: number): Vec3 
     t.origin,
     add(scale(t.uAxis, u * CM_TO_WORLD), scale(t.vAxis, v * CM_TO_WORLD)),
   );
+}
+
+/** Pont-a-poligonban teszt (ray casting). poly és p azonos térben (cm). */
+export function pointInPolygon(poly: Vec2[], p: Vec2): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i];
+    const b = poly[j];
+    if ((a.y > p.y) !== (b.y > p.y) && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/** A poligon azon éle, amelyik legközelebb van a `p` ponthoz (mind cm). */
+export function nearestEdge(poly: Vec2[], p: Vec2): { index: number; distance: number } {
+  let best = { index: 0, distance: Infinity };
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len2 = dx * dx + dy * dy || 1;
+    let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2;
+    t = Math.max(0, Math.min(1, t));
+    const cx = a.x + t * dx;
+    const cy = a.y + t * dy;
+    const d = Math.hypot(p.x - cx, p.y - cy);
+    if (d < best.distance) best = { index: i, distance: d };
+  }
+  return best;
 }

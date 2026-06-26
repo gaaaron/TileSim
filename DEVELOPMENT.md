@@ -75,7 +75,8 @@ views/
   SurfaceEditor.tsx  # MODAL oldal-szerkesztő (alterület, minta, forgatás, cellák)
 panels/
   RoomsPanel.tsx     # téglalap-szoba gyorslétrehozás + szoba-lista
-  TileLibraryPanel.tsx # csempetípusok + képfeltöltés + fuga
+  TileLibraryPanel.tsx # csempetípusok + képfeltöltés + fuga; a kártya fejlécére kattintva szerkesztő popup
+  TileInspector.tsx  # kijelölt csempe szerkesztő popupja (név, méret, fuga) – updateTileType
   SurfacesPanel.tsx  # „Oldalak" csoport: minden felület + láthatóság-checkbox + sorra katt = szerkesztő
   BoxInspector.tsx   # kijelölt doboz méret/pozíció popup
 ui/
@@ -307,6 +308,14 @@ zustand store. Fő mezők: `project`, `viewMode`, `planTool`, `draftRoom`, kijel
 Két store: `projects` (JSON, url-ek nélkül — `stripUrls`) és `images` (Blob, key=imageId).
 `hydrateImageUrls(project)` betöltés után object URL-eket gyárt a blobokból. Az aktuális projekt id-je `"default"`.
 
+**Export/Import (minden, a textúrákkal):** `exportProjectBlob(project)` egyetlen JSON-blobot ad
+(`{format:'tilesim', version, project (url nélkül), images: {id:{name,type,data(base64)}}}`) — a képeket
+az IndexedDB-ből base64-be kódolja. `importProjectFile(file)` visszaírja a képeket az IndexedDB-be és
+visszaadja a projektet. A store `exportProject()` letölti a `<név>.tilesim.json`-t, az `importProject(file)`
+migrál (`migrateProject`), `id="default"`-ra állít, ment, hidratál és lecseréli az aktuális projektet.
+UI: „⭳ Export" / „⭱ Import" gomb a toolbarban (rejtett file-input). A `migrateProject` helper a betöltésnél
+és importnál is fut (mezők pótlása, régi `rect`→poligon).
+
 ## 12. Megoldott buktatók (gotchas) — MIÉRT
 
 1. **Plan kamera 45°-os elfordulása:** lefelé néző ortografikus kameránál az up-vektor degenerált →
@@ -392,6 +401,11 @@ Changelog-ot. A dokumentáció magyarul készül; a kód-azonosítók angolul ma
   `tilePicker.imageIndexFor`/`pickImageUrl` override-paraméter, `setCellImageOverrides` store-akció.
   A szerkesztőben „Textúra léptetése" (kijelölt cellák kép-indexének léptetése, ha a csempének >1 képe van)
   és globális „Véletlen kiosztás" (az alterület összes cellájára véletlen textúra) gomb.
+- **2026-06-26** — **Export/Import (mindennel, a textúrákkal):** `exportProjectBlob`/`importProjectFile`
+  (storage), `exportProject`/`importProject` store-akciók, „⭳ Export"/„⭱ Import" toolbar-gombok. A teljes
+  projekt + képek egyetlen `.tilesim.json`-ban (base64 textúrák). A migráció kiemelve `migrateProject`-be.
+- **2026-06-26** — **Csempetípus szerkesztése** (`TileInspector` popup): a kártya fejlécére kattintva
+  módosítható a csempe neve, mérete (cm) és fugája (`updateTileType`); a méretváltozás élőben hat a mintákra.
 - **2026-06-26** — **Csempe 90°-os forgatása mintában (`PatternConfig.tileRotated`)** + checkbox a
   szerkesztőben: a `subRegionTiles` felcseréli a csempe w/h-t, a renderer a képet is forgatja. **Szoba-
   láthatóság** (`project.roomHidden`, `set/toggleRoomHidden`): a `SceneContents`/`RoomEditingLayer` kihagyja

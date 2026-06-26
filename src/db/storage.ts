@@ -77,3 +77,56 @@ export async function hydrateImageUrls(project: Project): Promise<Project> {
   }
   return project;
 }
+
+// ---- Export / Import (minden, a textúrákkal együtt; egyetlen JSON-fájlban, base64 képekkel) ----
+
+interface ProjectExport {
+  format: 'tilesim';
+  version: number;
+  project: Project; // url-ek nélkül
+  images: Record<string, { name: string; type: string; data: string }>; // data = base64
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(',')[1] ?? '');
+    r.onerror = reject;
+    r.readAsDataURL(blob);
+  });
+}
+
+function base64ToBlob(data: string, type: string): Blob {
+  const bin = atob(data);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type });
+}
+
+/** A teljes projekt + összes textúra egyetlen letölthető JSON-blobban. */
+export async function exportProjectBlob(project: Project): Promise<Blob> {
+  const images: ProjectExport['images'] = {};
+  for (const tile of project.tileTypes) {
+    for (const img of tile.images) {
+      if (images[img.id]) continue;
+      const blob = await loadImageBlob(img.id);
+      if (blob) {
+        images[img.id] = { name: img.name, type: blob.type || 'image/png', data: await blobToBase64(blob) };
+      }
+    }
+  }
+  const payload: ProjectExport = { format: 'tilesim', version: 1, project: stripUrls(project), images };
+  return new Blob([JSON.stringify(payload)], { type: 'application/json' });
+}
+
+/** Importál egy export-fájlt: a képeket az IndexedDB-be írja, a (még nem mentett) projektet visszaadja. */
+export async function importProjectFile(file: File): Promise<Project> {
+  const payload = JSON.parse(await file.text()) as ProjectExport;
+  if (payload.format !== 'tilesim' || !payload.project) {
+    throw new Error('Érvénytelen TileSim export-fájl.');
+  }
+  for (const [id, info] of Object.entries(payload.images ?? {})) {
+    await saveImageBlob(id, base64ToBlob(info.data, info.type));
+  }
+  return payload.project;
+}

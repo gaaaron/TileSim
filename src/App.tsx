@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useStore } from './store/projectStore';
 import { PlanView } from './views/PlanView';
 import { View3D } from './views/View3D';
@@ -25,8 +25,11 @@ export default function App() {
   const addBox = useStore((s) => s.addBox);
   const undo = useStore((s) => s.undo);
   const redo = useStore((s) => s.redo);
+  const exportProject = useStore((s) => s.exportProject);
+  const importProject = useStore((s) => s.importProject);
   const editingSurfaceId = useStore((s) => s.editingSurfaceId);
   const rooms = useStore((s) => s.project.rooms);
+  const importInput = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     init();
@@ -73,6 +76,24 @@ export default function App() {
         </button>
         <button onClick={undo} title="Visszavonás">↶</button>
         <button onClick={redo} title="Újra">↷</button>
+        <button onClick={() => exportProject()} title="Projekt exportálása (a textúrákkal)">⭳ Export</button>
+        <button onClick={() => importInput.current?.click()} title="Projekt importálása">⭱ Import</button>
+        <input
+          ref={importInput}
+          type="file"
+          accept=".json,application/json"
+          style={{ display: 'none' }}
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (!file) return;
+            try {
+              await importProject(file);
+            } catch (err) {
+              alert('Importálás sikertelen: ' + (err as Error).message);
+            }
+          }}
+        />
       </header>
 
       <div className="main">

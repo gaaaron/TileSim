@@ -12,7 +12,9 @@ import {
 } from '../model/types';
 import { allSurfaces } from '../model/geometry';
 import {
+  exportProjectBlob,
   hydrateImageUrls,
+  importProjectFile,
   listProjects,
   loadProject,
   saveImageBlob,
@@ -37,6 +39,32 @@ function emptyProject(): Project {
   };
 }
 
+/** Hiányzó mezők pótlása + régi adat migrálása (betöltésnél és importnál egyaránt). */
+function migrateProject(project: Project): Project {
+  project.surfaceData ??= {};
+  project.boxes ??= [];
+  project.rooms ??= [];
+  project.tileTypes ??= [];
+  project.surfaceHidden ??= {};
+  project.roomHidden ??= {};
+  for (const list of Object.values(project.surfaceData)) {
+    for (const sub of list as Array<SubRegion & { rect?: { u: number; v: number; w: number; h: number } }>) {
+      if (!sub.polygon && sub.rect) {
+        const r = sub.rect;
+        sub.polygon = [
+          { x: r.u, y: r.v },
+          { x: r.u + r.w, y: r.v },
+          { x: r.u + r.w, y: r.v + r.h },
+          { x: r.u, y: r.v + r.h },
+        ];
+        delete sub.rect;
+      }
+      sub.imageOverrides ??= {};
+    }
+  }
+  return project;
+}
+
 interface State {
   project: Project;
   viewMode: ViewMode;
@@ -56,6 +84,8 @@ interface State {
 
   // lifecycle
   init: () => Promise<void>;
+  exportProject: () => Promise<void>;
+  importProject: (file: File) => Promise<void>;
 
   // ui
   setViewMode: (m: ViewMode) => void;
@@ -164,32 +194,38 @@ export const useStore = create<State>((set, get) => {
         project = emptyProject();
         await saveProject(project);
       } else {
-        project = await hydrateImageUrls(project);
-        // biztonság: hiányzó mezők pótlása régi mentésnél
-        project.surfaceData ??= {};
-        project.boxes ??= [];
-        project.rooms ??= [];
-        project.tileTypes ??= [];
-        project.surfaceHidden ??= {};
-        project.roomHidden ??= {};
-        // migráció: régi téglalap-alterületek → poligon
-        for (const list of Object.values(project.surfaceData ?? {})) {
-          for (const sub of list as Array<SubRegion & { rect?: { u: number; v: number; w: number; h: number } }>) {
-            if (!sub.polygon && sub.rect) {
-              const r = sub.rect;
-              sub.polygon = [
-                { x: r.u, y: r.v },
-                { x: r.u + r.w, y: r.v },
-                { x: r.u + r.w, y: r.v + r.h },
-                { x: r.u, y: r.v + r.h },
-              ];
-              delete sub.rect;
-            }
-            sub.imageOverrides ??= {};
-          }
-        }
+        project = migrateProject(await hydrateImageUrls(project));
       }
       set({ project, loaded: true });
+    },
+
+    exportProject: async () => {
+      const project = get().project;
+      const blob = await exportProjectBlob(project);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const safe = (project.name || 'projekt').replace(/[^\w\-]+/g, '_');
+      a.href = url;
+      a.download = `${safe}.tilesim.json`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    },
+    importProject: async (file) => {
+      const parsed = await importProjectFile(file); // a képeket az IndexedDB-be írja
+      const project = migrateProject(parsed);
+      project.id = DEFAULT_PROJECT_ID; // az aktuális projektet írja felül
+      await saveProject(project);
+      const hydrated = await hydrateImageUrls(project);
+      set({
+        project: hydrated,
+        past: [],
+        future: [],
+        selectedBoxId: null,
+        selectedSurfaceId: null,
+        editingSurfaceId: null,
+        selectedSubRegionId: null,
+        selectedCells: [],
+      });
     },
 
     setViewMode: (m) => set({ viewMode: m }),

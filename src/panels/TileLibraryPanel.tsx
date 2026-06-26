@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { useStore } from '../store/projectStore';
+import { TileInspector } from './TileInspector';
 
 /** Csempetípusok kezelése: létrehozás, képfeltöltés, fuga, törlés. */
 export function TileLibraryPanel() {
@@ -12,6 +13,7 @@ export function TileLibraryPanel() {
   const [name, setName] = useState('Terrakotta');
   const [w, setW] = useState(40);
   const [h, setH] = useState(60);
+  const [editId, setEditId] = useState<string | null>(null);
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
   return (
@@ -33,10 +35,13 @@ export function TileLibraryPanel() {
         {tileTypes.map((t) => (
           <div key={t.id} className="tile-card">
             <div className="tile-card-head">
-              <strong>{t.name}</strong>
-              <span className="muted">
-                {t.widthCm}×{t.heightCm} cm
-              </span>
+              <button className="tile-edit-btn" onClick={() => setEditId(t.id)} title="Szerkesztés">
+                <strong>{t.name}</strong>
+                <span className="muted">
+                  {t.widthCm}×{t.heightCm} cm
+                </span>
+                <span className="edit-hint">✎</span>
+              </button>
               <button className="icon danger" onClick={() => removeTileType(t.id)} title="Törlés">
                 ✕
               </button>
@@ -83,6 +88,8 @@ export function TileLibraryPanel() {
           </div>
         ))}
       </div>
+
+      {editId && <TileInspector tileId={editId} onClose={() => setEditId(null)} />}
     </div>
   );
 }

@@ -35,6 +35,7 @@ export function SceneContents({ mode }: Props) {
       </mesh>
 
       {project.rooms.map((room) => {
+        if (project.roomHidden?.[room.id]) return null;
         const floor = byId.get(`${room.id}:floor`);
         const walls = surfaces.filter((s) => s.id.startsWith(`${room.id}:wall:`) && !s.hidden);
         return (

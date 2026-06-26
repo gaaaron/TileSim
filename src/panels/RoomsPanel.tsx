@@ -4,8 +4,10 @@ import { useStore } from '../store/projectStore';
 /** Szobák: pontos méretű téglalap-szoba gyors létrehozása + lista/törlés. */
 export function RoomsPanel() {
   const rooms = useStore((s) => s.project.rooms);
+  const roomHidden = useStore((s) => s.project.roomHidden);
   const addRoom = useStore((s) => s.addRoom);
   const removeRoom = useStore((s) => s.removeRoom);
+  const toggleRoomHidden = useStore((s) => s.toggleRoomHidden);
 
   const [w, setW] = useState(400);
   const [l, setL] = useState(300);
@@ -37,6 +39,12 @@ export function RoomsPanel() {
       <div className="room-list">
         {rooms.map((r) => (
           <div key={r.id} className="room-item">
+            <input
+              type="checkbox"
+              checked={!roomHidden?.[r.id]}
+              title="Láthatóság"
+              onChange={() => toggleRoomHidden(r.id)}
+            />
             <span className="link">{r.name}</span>
             <span className="muted small">{r.heightCm} cm</span>
             <button className="icon danger" onClick={() => removeRoom(r.id)}>

@@ -31,8 +31,11 @@ function defaultTile(sub: SubRegion, tileTypes: TileType[]): TileType | undefine
  */
 export function subRegionTiles(sub: SubRegion, tileTypes: TileType[]): CellTile[] {
   const tile = defaultTile(sub, tileTypes);
-  const tw = tile?.widthCm ?? 40;
-  const th = tile?.heightCm ?? 40;
+  const baseW = tile?.widthCm ?? 40;
+  const baseH = tile?.heightCm ?? 40;
+  // 90°-os csempe-forgatásnál a szélesség/magasság felcserélődik a mintában
+  const tw = sub.pattern.tileRotated ? baseH : baseW;
+  const th = sub.pattern.tileRotated ? baseW : baseH;
   const gen = getGenerator(sub.pattern.generator);
   const rect = subRegionBBox(sub);
   const theta = ((sub.pattern.angleDeg ?? 0) * Math.PI) / 180;
@@ -141,13 +144,19 @@ export function renderSurfaceCanvas(
       const dw = (cell.w - groutCm) * ppc;
       const dh = (cell.h - groutCm) * ppc;
       if (dw <= 0 || dh <= 0) continue;
-      const url = pickImageUrl(tt, cell.cellId);
+      const url = pickImageUrl(tt, cell.cellId, sub.imageOverrides?.[cell.cellId]);
       const img = url ? images.get(url) : undefined;
       ctx.save();
       ctx.translate(cell.cx * ppc, cell.cy * ppc);
       if (cell.rotationDeg) ctx.rotate((cell.rotationDeg * Math.PI) / 180);
       if (img) {
-        ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh);
+        if (sub.pattern.tileRotated) {
+          // a kép is 90°-kal forog; a rajzolt méreteket felcseréljük, hogy kitöltse a cellát
+          ctx.rotate(Math.PI / 2);
+          ctx.drawImage(img, -dh / 2, -dw / 2, dh, dw);
+        } else {
+          ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh);
+        }
       } else {
         ctx.fillStyle = tt ? '#d8cdbb' : '#b9b3a6';
         ctx.fillRect(-dw / 2, -dh / 2, dw, dh);

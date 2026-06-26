@@ -2,10 +2,12 @@ import { PatternContext, PatternGenerator, Size, TilePlacement } from './types';
 
 /**
  * Halszálka (90°-os herringbone).
- * A tökéletes összeilleszkedéshez a rövid oldal = hosszú oldal / 2.
+ * A CELLÁK MÉRETE = a csempe valódi mérete: L = hosszabb oldal, W = rövidebb oldal.
  * Motívum: H = (0,0,L,W) vízszintes + V = (L,0,W,L) függőleges csempe.
- * Rács-vektorok: v1 = (W, L+W), v2 = (W, -W) — ezek hézag- és átfedésmentesen
- * töltik a síkot (det = 2·L·W = a motívum területe, L = 2W mellett).
+ * Rács-vektorok: v1 = (W, L+W), v2 = (W, -W). Ezek hézag- és átfedésmentesen
+ * töltik a síkot, ha L = 2W (a klasszikus halszálka 2:1 csempével). Más arányoknál
+ * a cellák a csempe méretét tartják, az illeszkedésnél kis hézag/átfedés keletkezhet
+ * (ez geometriailag elkerülhetetlen, mert a valódi halszálka 2:1 csempét igényel).
  */
 export const herringboneGenerator: PatternGenerator = {
   name: 'herringbone',
@@ -13,7 +15,7 @@ export const herringboneGenerator: PatternGenerator = {
   paramSpec: {},
   generate(bounds: Size, ctx: PatternContext): TilePlacement[] {
     const L = Math.max(ctx.tile.w, ctx.tile.h, 1);
-    const W = L / 2;
+    const W = Math.max(Math.min(ctx.tile.w, ctx.tile.h), 1);
     const v1 = { x: W, y: L + W };
     const v2 = { x: W, y: -W };
     const margin = L;

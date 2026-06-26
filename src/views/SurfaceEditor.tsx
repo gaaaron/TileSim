@@ -4,6 +4,7 @@ import { boundingBox, nearestEdge, pointInPolygon } from '../model/geometry';
 import { useStore } from '../store/projectStore';
 import { allGenerators, getGenerator } from '../patterns/registry';
 import { renderSurfaceCanvas, subRegionTiles, surfaceImageUrls } from '../render/SurfaceTexture';
+import { imageIndexFor } from '../render/tilePicker';
 import { useImages } from '../render/imageCache';
 
 const MAX_W = 720;
@@ -53,6 +54,7 @@ export function SurfaceEditor() {
   const deleteSubRegionVertex = useStore((s) => s.deleteSubRegionVertex);
   const removeSubRegion = useStore((s) => s.removeSubRegion);
   const assignTileToCells = useStore((s) => s.assignTileToCells);
+  const setCellImageOverrides = useStore((s) => s.setCellImageOverrides);
   const beginDrag = useStore((s) => s.beginDrag);
   const endDrag = useStore((s) => s.endDrag);
   const toggleSurfaceHidden = useStore((s) => s.toggleSurfaceHidden);
@@ -74,10 +76,16 @@ export function SurfaceEditor() {
 
   const scale = surface ? Math.min(MAX_W / surface.widthCm, MAX_H / surface.heightCm) : 1;
 
+  // Falaknál (és függőleges doboz-oldalaknál) a `v` tengely FELFELÉ mutat (v=0 = padló),
+  // ezért a szerkesztőt függőlegesen tükrözzük, hogy a fal alja a vászon alján legyen.
+  const flipV = surface ? surface.transform.vAxis.y > 0.5 : false;
+  /** felület-v (cm) → vászon-pixel (a flip figyelembevételével) */
+  const vy = (v: number) => (flipV && surface ? surface.heightCm - v : v) * scale;
+
   const pathPoly = (ctx: CanvasRenderingContext2D, poly: Pt[]) => {
     ctx.beginPath();
     poly.forEach((p, i) =>
-      i === 0 ? ctx.moveTo(p.x * scale, p.y * scale) : ctx.lineTo(p.x * scale, p.y * scale),
+      i === 0 ? ctx.moveTo(p.x * scale, vy(p.y)) : ctx.lineTo(p.x * scale, vy(p.y)),
     );
     ctx.closePath();
   };
@@ -93,9 +101,17 @@ export function SurfaceEditor() {
     const ctx = canvas.getContext('2d')!;
     ctx.clearRect(0, 0, W, H);
 
-    // alap textúra
+    // alap textúra (falaknál függőlegesen tükrözve, hogy a fal alja lent legyen)
     const { canvas: base } = renderSurfaceCanvas(surface, tileTypes, images);
-    ctx.drawImage(base, 0, 0, base.width, base.height, 0, 0, W, H);
+    if (flipV) {
+      ctx.save();
+      ctx.translate(0, H);
+      ctx.scale(1, -1);
+      ctx.drawImage(base, 0, 0, base.width, base.height, 0, 0, W, H);
+      ctx.restore();
+    } else {
+      ctx.drawImage(base, 0, 0, base.width, base.height, 0, 0, W, H);
+    }
 
     // a felület VALÓDI alakja (pl. L-padló): a körvonalon kívüli rész elsötétítve
     if (surface.outline && surface.outline.length >= 3) {
@@ -104,7 +120,7 @@ export function SurfaceEditor() {
       ctx.beginPath();
       ctx.rect(0, 0, W, H);
       surface.outline.forEach((p, i) =>
-        i === 0 ? ctx.moveTo(p.x * scale, p.y * scale) : ctx.lineTo(p.x * scale, p.y * scale),
+        i === 0 ? ctx.moveTo(p.x * scale, vy(p.y)) : ctx.lineTo(p.x * scale, vy(p.y)),
       );
       ctx.closePath();
       ctx.fill('evenodd');
@@ -132,8 +148,8 @@ export function SurfaceEditor() {
         const w = cell.w * scale;
         const h = cell.h * scale;
         ctx.save();
-        ctx.translate(cell.cx * scale, cell.cy * scale);
-        if (cell.rotationDeg) ctx.rotate((cell.rotationDeg * Math.PI) / 180);
+        ctx.translate(cell.cx * scale, vy(cell.cy));
+        if (cell.rotationDeg) ctx.rotate(((flipV ? -1 : 1) * cell.rotationDeg * Math.PI) / 180);
         ctx.strokeStyle = '#00000055';
         ctx.lineWidth = 0.5;
         ctx.strokeRect(-w / 2, -h / 2, w, h);
@@ -153,7 +169,7 @@ export function SurfaceEditor() {
       ctx.lineWidth = 1.5;
       for (const v of activeSub.polygon) {
         const cx = v.x * scale;
-        const cy = v.y * scale;
+        const cy = vy(v.y);
         ctx.fillRect(cx - HANDLE_PX / 2, cy - HANDLE_PX / 2, HANDLE_PX, HANDLE_PX);
         ctx.strokeRect(cx - HANDLE_PX / 2, cy - HANDLE_PX / 2, HANDLE_PX, HANDLE_PX);
       }
@@ -162,13 +178,15 @@ export function SurfaceEditor() {
     // húzott (új alterület) téglalap
     if (drag.current) {
       const { x0, y0, x1, y1 } = drag.current;
+      const sy0 = vy(y0);
+      const sy1 = vy(y1);
       ctx.strokeStyle = '#22c55e';
       ctx.setLineDash([4, 4]);
       ctx.strokeRect(
         Math.min(x0, x1) * scale,
-        Math.min(y0, y1) * scale,
+        Math.min(sy0, sy1),
         Math.abs(x1 - x0) * scale,
-        Math.abs(y1 - y0) * scale,
+        Math.abs(sy1 - sy0),
       );
       ctx.setLineDash([]);
     }
@@ -178,15 +196,17 @@ export function SurfaceEditor() {
 
   const toXY = (clientX: number, clientY: number): Pt => {
     const rect = canvasRef.current!.getBoundingClientRect();
+    let v = (clientY - rect.top) / scale;
+    if (flipV) v = surface.heightCm - v;
     return {
       x: clamp((clientX - rect.left) / scale, 0, surface.widthCm),
-      y: clamp((clientY - rect.top) / scale, 0, surface.heightCm),
+      y: clamp(v, 0, surface.heightCm),
     };
   };
 
   const openMenuAt = (subId: string, index: number, v: Pt) => {
     const c = canvasRef.current!;
-    setMenu({ subId, index, sx: c.offsetLeft + v.x * scale, sy: c.offsetTop + v.y * scale });
+    setMenu({ subId, index, sx: c.offsetLeft + v.x * scale, sy: c.offsetTop + vy(v.y) });
   };
 
   const onDown = (e: React.PointerEvent) => {
@@ -341,6 +361,37 @@ export function SurfaceEditor() {
   const gen = activeSub ? getGenerator(activeSub.pattern.generator) : null;
   const menuSub = menu ? surface.subRegions.find((s) => s.id === menu.subId) : null;
 
+  // egy cella aktuális csempetípusa (override vagy a minta alapcsempéje)
+  const tileForCell = (cellId: string) =>
+    tileTypes.find((t) => t.id === (activeSub?.tileOverrides[cellId] ?? activeSub?.pattern.defaultTileTypeId));
+
+  // a kijelölt cellák textúrájának léptetése (a következő képre a csempe képei közül)
+  const stepSelectedTextures = () => {
+    if (!activeSub) return;
+    const overrides: Record<string, number> = {};
+    for (const cellId of selectedCells) {
+      const tt = tileForCell(cellId);
+      if (!tt || tt.images.length <= 1) continue;
+      const cur = imageIndexFor(tt, cellId, activeSub.imageOverrides?.[cellId]);
+      overrides[cellId] = (cur + 1) % tt.images.length;
+    }
+    if (Object.keys(overrides).length) setCellImageOverrides(surface.id, activeSub.id, overrides);
+  };
+
+  // globális: az alterület MINDEN cellájára véletlen kép-index (a cella csempéjének képei közül)
+  const randomizeTextures = () => {
+    if (!activeSub) return;
+    const overrides: Record<string, number> = {};
+    for (const cell of subRegionTiles(activeSub, tileTypes)) {
+      const tt = tileTypes.find((t) => t.id === cell.tileTypeId);
+      if (!tt || tt.images.length <= 1) continue;
+      overrides[cell.cellId] = Math.floor(Math.random() * tt.images.length);
+    }
+    if (Object.keys(overrides).length) setCellImageOverrides(surface.id, activeSub.id, overrides);
+  };
+
+  const canStep = !!activeSub && selectedCells.some((c) => (tileForCell(c)?.images.length ?? 0) > 1);
+
   return (
     <div className="modal-overlay" onClick={() => openSurfaceEditor(null)}>
       <div className="modal surface-editor" onClick={(e) => e.stopPropagation()}>
@@ -426,6 +477,17 @@ export function SurfaceEditor() {
                   ))}
                 </select>
 
+                <label className="vis-toggle" style={{ marginTop: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={!!activeSub.pattern.tileRotated}
+                    onChange={(e) =>
+                      updateSubRegionPattern(surface.id, activeSub.id, { tileRotated: e.target.checked })
+                    }
+                  />
+                  Csempe 90°-kal elforgatva
+                </label>
+
                 <label>Elforgatás: {Math.round(activeSub.pattern.angleDeg ?? 0)}°</label>
                 <input
                   type="range"
@@ -506,7 +568,19 @@ export function SurfaceEditor() {
                 >
                   Csempe a kijelöltekhez
                 </button>
+                <button
+                  disabled={!canStep}
+                  title="A kijelölt cella(k) textúrájának léptetése a csempe képei között"
+                  onClick={stepSelectedTextures}
+                >
+                  ⟳ Textúra léptetése
+                </button>
                 <button onClick={() => setSelectedCells([])}>Kijelölés törlése</button>
+
+                <h4>Textúra-kiosztás</h4>
+                <button title="Az alterület minden cellájára véletlen textúra a csempe képei közül" onClick={randomizeTextures}>
+                  🎲 Véletlen kiosztás
+                </button>
               </div>
             )}
           </div>

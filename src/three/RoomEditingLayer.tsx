@@ -32,6 +32,7 @@ export function RoomEditingLayer() {
   const planTool = useStore((s) => s.planTool);
   const rooms = useStore((s) => s.project.rooms);
   const draftRoom = useStore((s) => s.draftRoom);
+  const roomHidden = useStore((s) => s.project.roomHidden);
   const deleteRoomVertex = useStore((s) => s.deleteRoomVertex);
 
   const { camera, gl, raycaster, controls } = useThree((s) => ({
@@ -204,6 +205,7 @@ export function RoomEditingLayer() {
           (Él-kettősklikk = új pont a FloorMesh-ben kezelve, megbízható nagy találati felület.) */}
       {!drawing &&
         rooms.map((room) => {
+          if (roomHidden[room.id]) return null;
           const poly = room.floorPolygon;
           return (
             <group key={room.id}>

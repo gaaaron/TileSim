@@ -59,7 +59,7 @@ patterns/         # PATTERN-MOTOR (bővíthető)
   patterns.test.ts# hézag-/átfedés teszt mindhárom generátorra
 render/
   SurfaceTexture.ts # subRegionTiles() + renderSurfaceCanvas() + surfaceImageUrls()
-  tilePicker.ts     # több kép közül determinisztikus választás (cellId hash)
+  tilePicker.ts     # imageIndexFor/pickImageUrl: per-cella kép-index override VAGY cellId-hash
   imageCache.ts     # kép betöltés + useImages() React hook
 three/
   pose.ts            # surfacePose(): felület → 3D pozíció + kvaternió (JOBBKEZES bázis!)
@@ -99,14 +99,21 @@ App.tsx, main.tsx, styles.css, vite-env.d.ts
   widthCm, heightCm, transform: SurfaceTransform, subRegions: SubRegion[], baseColor }`.
 - **`SurfaceTransform`**: `{ origin, uAxis, vAxis, normal }` (origin világ-méterben, a tengelyek egységvektorok).
 - **`SubRegion`**: `{ id, polygon: Vec2[] (cm a felület (u,v) terében; x=u, y=v), pattern: PatternConfig,
-  tileOverrides: Record<cellId, tileTypeId> }`. Az alterület **tetszőleges poligon** (nem csak téglalap).
+  tileOverrides: Record<cellId, tileTypeId>, imageOverrides: Record<cellId, number> }`.
+  Az `imageOverrides` egy cella KÉP-indexét rögzíti a csempe `images` tömbjén belül (textúra-léptetés /
+  véletlen kiosztás); ha nincs override, a `cellId` hash determinisztikusan választ.
+  Az alterület **tetszőleges poligon** (nem csak téglalap).
   A befoglaló téglalapot a `subRegionBBox(sub)` adja. Régi `rect`-es mentés betöltéskor 4-csúcsú
   poligonná migrálódik (store `init`).
 - **`Surface.outline?`**: a felület VALÓDI alakja a (u,v) térben (cm), ha nem téglalap (pl. L-padló).
   A `floorSurface` állítja be a szoba poligonjából; a szerkesztő ezzel sötétíti a körvonalon kívüli részt.
 - **`PatternConfig`**: `{ generator:'grid'|'offset'|'herringbone', defaultTileTypeId, angleDeg,
-  originOffset:{x,y}, params: Record<string,number> }`.
-- **`Project`**: `{ id, name, tileTypes[], rooms[], boxes[], surfaceData: Record<surfaceId, SubRegion[]> }`.
+  originOffset:{x,y}, params: Record<string,number>, tileRotated? }`. A `tileRotated` a csempét 90°-kal
+  forgatva használja a mintában (a `subRegionTiles` felcseréli a `tile.w/h`-t, a renderer a képet is 90°-kal
+  forgatja) — pl. kötésben a csempe a másik oldalával kerül a sorba.
+- **`Project`**: `{ id, name, tileTypes[], rooms[], boxes[], surfaceData, surfaceHidden, roomHidden }`.
+  A `roomHidden: Record<roomId, boolean>` egész szobákat rejt (padló + falai); a `SceneContents` és a
+  `RoomEditingLayer` kihagyja őket. UI: checkbox a `RoomsPanel` sorában (`toggleRoomHidden`).
   **Fontos:** a felületek geometriája NINCS tárolva — a szobákból/dobozokból **származtatott**
   (lásd 6.1). Csak a felülethez tartozó `subRegions` perzisztálódik `surfaceData[surfaceId]` alatt.
 
@@ -137,9 +144,11 @@ A generátorok **abutáló** (hézag nélküli) csempéket adnak. A **fugát a r
 ### 6.3 Meglévő generátorok
 - **`grid`**: azonos méretű csempék rácsban. Lép = csempe méret.
 - **`offset`**: minden sor eltolva (`params.offset` = csempe-arány, def 0.5).
-- **`herringbone`**: 90°-os halszálka. A tökéletes illeszkedéshez a **rövid oldal = hosszú/2**.
-  Motívum: `H=(0,0,L,W)` + `V=(L,0,W,L)`. Rács-vektorok `v1=(W,L+W), v2=(W,-W)` — ezek
-  hézag-/átfedésmentesen töltik a síkot (det = 2·L·W = a motívum területe, L=2W mellett).
+- **`herringbone`**: 90°-os halszálka. A **cellák mérete = a csempe valódi mérete**
+  (`L=max(w,h)`, `W=min(w,h)`). Motívum: `H=(0,0,L,W)` + `V=(L,0,W,L)`. Rács-vektorok
+  `v1=(W,L+W), v2=(W,-W)` — ezek hézag-/átfedésmentesen töltik a síkot, **ha L=2W** (klasszikus 2:1
+  csempe). Más aránynál a cella a csempe méretét tartja, de az illeszkedésnél kis hézag/átfedés van
+  (ez geometriai szükségszerűség — valódi halszálka 2:1 csempét igényel).
   A **vizuális 45°-os halszálkát** nem a generátor adja, hanem a `PatternConfig.angleDeg`
   (a minta a rect közepe körül forog, lásd 7). A SurfaceEditor a halszálka kiválasztásakor
   automatikusan 45°-ra állítja az `angleDeg`-et, ha az még 0.
@@ -251,9 +260,19 @@ a valódi alak látszik (mint az alaprajzon). Két mód:
   A `beginDrag`-et csak az első tényleges mozdulatnál hívjuk (≥2 cm) → klikk ≠ undo-lépés; húzás = egy lépés.
 - **`cells`**: klikk = egy cella toggle, húzás = gumikeret (a cella **középpontja** alapján). A kijelölés a
   **poligonra van vágva** (`pointInPolygon`). A cellák elforgatottak lehetnek (`rotationDeg`), ezért a
-  találat a pontot a cella lokális keretébe transzformálja.
+  találat a pontot a cella lokális keretébe transzformálja. **Textúra-vezérlők** (ha a csempének >1 képe van):
+  „⟳ Textúra léptetése" a kijelölt cellák kép-indexét lépteti (`imageIndexFor`+1, wrap), „🎲 Véletlen kiosztás"
+  az alterület MINDEN cellájára véletlen kép-indexet ad. Mindkettő a `setCellImageOverrides`-on át ír
+  `imageOverrides`-ba; a base-textúra automatikusan újrarajzolódik.
 A `renderSurfaceCanvas` és a cella-réteg az alterületet a **poligonjára klippeli** (nem a befoglalóra), így
 nem-téglalap alterületen is pontosan jelenik meg.
+
+**Függőleges tükrözés falaknál (`flipV`):** a falak (és függőleges doboz-oldalak) `(u,v)` terében `v=0` a
+**padló** (a `transform.vAxis` felfelé mutat). A szerkesztő `v`-t alapból lefelé rajzolja, ezért ezeknél a
+felületeknél a megjelenítést **függőlegesen tükrözzük** (`flipV = vAxis.y > 0.5`): a `vy(v)` helper a
+rajzoláshoz, a `toXY` az egér→(u,v) leképzéshez tükröz, az alap-textúrát `scale(1,-1)`-gyel rajzoljuk, a
+forgatott cellák szögét negáljuk. Így a vászon ALJA = a fal alja (padló) — egyezik a 3D-vel és az
+intuícióval. A padlónál (`vAxis.y≈0`) nincs flip (a felülnézettel egyezik).
 A minta-vezérlők: generátor választó (halszálkánál auto 45°), alap csempe, **Elforgatás csúszka + 0/30/45/90°
 gombok** (`angleDeg`), generátor-paraméterek (`paramSpec`), `originOffset`. Cella-kijelöléshez csempe-hozzárendelés.
 
@@ -314,6 +333,9 @@ Két store: `projects` (JSON, url-ek nélkül — `stripUrls`) és `images` (Blo
 12. **WebGL context kimerülés / fehér képernyő:** sok HMR-reload után a böngésző blokkolhatja az új WebGL
     contextet → a `Canvas` dob. Az `ErrorBoundary` (App.viewport) elkapja, így csak a nézet hibázik, az app
     nem. (Dev tipp: ha tesztben „context loss and was blocked" jön, indíts friss preview-böngészőt.)
+13. **Fal-szerkesztő v-iránya:** a falaknál `v=0` a padló (vAxis felfelé), de a szerkesztő canvasa lefelé
+    rajzol → enélkül a „lent" kijelölés a fal tetejére esne. Megoldás: `flipV` a vertikális-vAxis felületekre
+    (lásd 10). A 3D leképzés helyes volt, csak a szerkesztő megjelenítése tükröződött az intuícióhoz.
 
 ## 13. Tesztelés és böngészős verifikáció
 
@@ -366,3 +388,18 @@ Changelog-ot. A dokumentáció magyarul készül; a kód-azonosítók angolul ma
   poligonra klippel. Az alterület szerkesztése az alaprajzihoz hasonló: csúcs-mozgatás, él-dupla-katt = új
   pont, csúcs-context-menu = törlés, belül-húzás = mozgatás. Új store-akciók
   (`updateSubRegionPolygon`, `move/insert/deleteSubRegionVertex`) + `pointInPolygon` helper.
+- **2026-06-26** — **Per-cella textúra-kiosztás:** `SubRegion.imageOverrides` (cellId → kép-index),
+  `tilePicker.imageIndexFor`/`pickImageUrl` override-paraméter, `setCellImageOverrides` store-akció.
+  A szerkesztőben „Textúra léptetése" (kijelölt cellák kép-indexének léptetése, ha a csempének >1 képe van)
+  és globális „Véletlen kiosztás" (az alterület összes cellájára véletlen textúra) gomb.
+- **2026-06-26** — **Csempe 90°-os forgatása mintában (`PatternConfig.tileRotated`)** + checkbox a
+  szerkesztőben: a `subRegionTiles` felcseréli a csempe w/h-t, a renderer a képet is forgatja. **Szoba-
+  láthatóság** (`project.roomHidden`, `set/toggleRoomHidden`): a `SceneContents`/`RoomEditingLayer` kihagyja
+  a rejtett szobát; checkbox a `RoomsPanel` sorában.
+- **2026-06-26** — **Halszálka cella-méret = csempe-méret:** korábban a rövid oldalt `hosszú/2`-re
+  kényszerítettük (40×60 csempe → 60×30 cella). Mostantól `W=min(w,h)` → a cellák a csempe valódi méretét
+  veszik (40×60 → 40×60). 2:1 csempénél hézagmentes; más aránynál kis hézag/átfedés (geometriai korlát).
+- **2026-06-26** — **Fal-szerkesztő függőleges tükrözés (`flipV`):** falaknál `v=0` a padló, de a szerkesztő
+  korábban a vászon TETEJÉRE rajzolta — a „lent" kijelölés a fal tetejét érintette. Mostantól a vertikális-
+  `vAxis`-ú felületeknél a megjelenítés+egér-leképzés tükröződik (`vy`, `toXY`, alap-textúra `scale(1,-1)`,
+  cella-szög negálás), így a vászon alja = a fal alja.

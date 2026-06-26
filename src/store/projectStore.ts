@@ -33,6 +33,7 @@ function emptyProject(): Project {
     boxes: [],
     surfaceData: {},
     surfaceHidden: {},
+    roomHidden: {},
   };
 }
 
@@ -104,8 +105,12 @@ interface State {
   deleteSubRegionVertex: (surfaceId: string, subId: string, index: number) => void;
   removeSubRegion: (surfaceId: string, subId: string) => void;
   assignTileToCells: (surfaceId: string, subId: string, cellIds: string[], tileTypeId: string) => void;
+  /** Per-cella kép-index felülírások összefésülése (textúra léptetés / véletlen kiosztás). */
+  setCellImageOverrides: (surfaceId: string, subId: string, overrides: Record<string, number>) => void;
   setSurfaceHidden: (surfaceId: string, hidden: boolean) => void;
   toggleSurfaceHidden: (surfaceId: string) => void;
+  setRoomHidden: (roomId: string, hidden: boolean) => void;
+  toggleRoomHidden: (roomId: string) => void;
 
   // húzás-koalescálás (egy undo-lépés / húzás): mozgatás, átméretezés
   beginDrag: () => void;
@@ -166,6 +171,7 @@ export const useStore = create<State>((set, get) => {
         project.rooms ??= [];
         project.tileTypes ??= [];
         project.surfaceHidden ??= {};
+        project.roomHidden ??= {};
         // migráció: régi téglalap-alterületek → poligon
         for (const list of Object.values(project.surfaceData ?? {})) {
           for (const sub of list as Array<SubRegion & { rect?: { u: number; v: number; w: number; h: number } }>) {
@@ -179,6 +185,7 @@ export const useStore = create<State>((set, get) => {
               ];
               delete sub.rect;
             }
+            sub.imageOverrides ??= {};
           }
         }
       }
@@ -343,7 +350,7 @@ export const useStore = create<State>((set, get) => {
           params: {},
         };
         const list = p.surfaceData[surfaceId] ?? (p.surfaceData[surfaceId] = []);
-        list.push({ id, polygon, pattern, tileOverrides: {} });
+        list.push({ id, polygon, pattern, tileOverrides: {}, imageOverrides: {} });
         return p;
       });
       return id;
@@ -389,6 +396,15 @@ export const useStore = create<State>((set, get) => {
         if (sub) for (const c of cellIds) sub.tileOverrides[c] = tileTypeId;
         return p;
       }),
+    setCellImageOverrides: (surfaceId, subId, overrides) =>
+      mutate((p) => {
+        const sub = (p.surfaceData[surfaceId] ?? []).find((s) => s.id === subId);
+        if (sub) {
+          sub.imageOverrides ??= {};
+          Object.assign(sub.imageOverrides, overrides);
+        }
+        return p;
+      }),
     setSurfaceHidden: (surfaceId, hidden) =>
       mutate((p) => {
         p.surfaceHidden ??= {};
@@ -398,6 +414,15 @@ export const useStore = create<State>((set, get) => {
       }),
     toggleSurfaceHidden: (surfaceId) =>
       get().setSurfaceHidden(surfaceId, !get().project.surfaceHidden?.[surfaceId]),
+    setRoomHidden: (roomId, hidden) =>
+      mutate((p) => {
+        p.roomHidden ??= {};
+        if (hidden) p.roomHidden[roomId] = true;
+        else delete p.roomHidden[roomId];
+        return p;
+      }),
+    toggleRoomHidden: (roomId) =>
+      get().setRoomHidden(roomId, !get().project.roomHidden?.[roomId]),
 
     beginDrag: () => {
       // egyetlen pillanatkép a húzás elejéről, majd a köztes mutációk nem rakódnak history-ba

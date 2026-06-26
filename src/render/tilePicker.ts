@@ -7,15 +7,23 @@ function hash(str: string): number {
     h ^= str.charCodeAt(i);
     h = Math.imul(h, 16777619);
   }
-  return (h >>> 0);
+  return h >>> 0;
 }
 
 /**
- * Egy cellához kiválaszt egy képet a csempetípus képei közül.
- * Több kép esetén a cellId hash alapján kever (determinisztikus „vegyes lerakás").
+ * A cellához tartozó kép INDEXE a csempe images tömbjében.
+ * `override` (per-cella kép-index) elsőbbséget élvez; egyébként a cellId hash determinisztikusan kever.
+ * -1, ha nincs kép.
  */
-export function pickImageUrl(tile: TileType | undefined, cellId: string): string | null {
-  if (!tile || tile.images.length === 0) return null;
-  const idx = hash(cellId) % tile.images.length;
-  return tile.images[idx].url ?? null;
+export function imageIndexFor(tile: TileType | undefined, cellId: string, override?: number): number {
+  if (!tile || tile.images.length === 0) return -1;
+  const n = tile.images.length;
+  if (override != null) return ((Math.round(override) % n) + n) % n;
+  return hash(cellId) % n;
+}
+
+/** A cellához kiválasztott kép URL-je (vagy null). `override` = kézi per-cella kép-index. */
+export function pickImageUrl(tile: TileType | undefined, cellId: string, override?: number): string | null {
+  const idx = imageIndexFor(tile, cellId, override);
+  return idx < 0 ? null : tile!.images[idx].url ?? null;
 }

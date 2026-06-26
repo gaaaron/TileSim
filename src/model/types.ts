@@ -96,6 +96,8 @@ export interface PatternConfig {
   generator: PatternKind;
   /** Az alapértelmezett csempetípus a generált cellákhoz. */
   defaultTileTypeId: Id | null;
+  /** A csempe 90°-kal elforgatva kerüljön be a mintába (szélesség/magasság felcserélve). */
+  tileRotated?: boolean;
   /** Forgatás fok (a teljes minta elforgatása a subregionon belül). */
   angleDeg: number;
   /** Origó eltolás cm-ben (u,v). */
@@ -110,8 +112,10 @@ export interface SubRegion {
   /** A poligon csúcsai a felület (u,v) terében (cm); x=u, y=v. */
   polygon: Vec2[];
   pattern: PatternConfig;
-  /** Cella-szintű textúra felülírások: cellId → tileTypeId. */
+  /** Cella-szintű csempetípus felülírások: cellId → tileTypeId. */
   tileOverrides: Record<string, Id>;
+  /** Cella-szintű KÉP-index felülírások: cellId → a csempe images tömbjének indexe. */
+  imageOverrides: Record<string, number>;
 }
 
 export interface Project {
@@ -124,6 +128,8 @@ export interface Project {
   surfaceData: Record<string, SubRegion[]>;
   /** Elrejtett felületek: surfaceId → true (a 3D megjelenítésből kihagyva). */
   surfaceHidden: Record<string, boolean>;
+  /** Elrejtett szobák: roomId → true (a padló + falai nem jelennek meg). */
+  roomHidden: Record<string, boolean>;
 }
 
 export function uid(prefix = ''): Id {

@@ -95,18 +95,24 @@ export function SurfaceEditor() {
   const [pivot, setPivot] = useState<{ col: number; row: number }>({ col: 1, row: 1 });
   const [wText, setWText] = useState('');
   const [hText, setHText] = useState('');
+  const [xText, setXText] = useState('');
+  const [yText, setYText] = useState('');
 
   const images = useImages(surface ? surfaceImageUrls(surface, tileTypes) : []);
 
   const activeSub =
     surface?.subRegions.find((r) => r.id === selectedSubRegionId) ?? surface?.subRegions[0];
 
-  // a méret-mezők szinkronizálása az aktív alterület befoglalójához (váltáskor)
+  // a méret/pozíció mezők szinkronizálása az aktív alterülethez (váltáskor)
   useEffect(() => {
-    if (activeSub) {
+    if (activeSub && surface) {
       const bb = boundingBox(activeSub.polygon);
       setWText(String(Math.round(bb.w)));
       setHText(String(Math.round(bb.h)));
+      setXText(String(Math.round(bb.minX)));
+      // a megjelenített bal-felső sarok Y-ja (falaknál a v tengely tükrözött)
+      const topY = surface.transform.vAxis.y > 0.5 ? surface.heightCm - (bb.minY + bb.h) : bb.minY;
+      setYText(String(Math.round(topY)));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSub?.id]);
@@ -482,6 +488,23 @@ export function SurfaceEditor() {
     setHText(String(newH));
   };
 
+  // numerikus pozícionálás: az alterületet a megadott (megjelenített) bal-felső sarokra tolja
+  const moveActiveSubTo = () => {
+    if (!activeSub) return;
+    const bb = boundingBox(activeSub.polygon);
+    const X = xText === '' ? bb.minX : Math.round(+xText);
+    const dispCurY = flipV ? surface.heightCm - (bb.minY + bb.h) : bb.minY;
+    const Yd = yText === '' ? dispCurY : Math.round(+yText);
+    const targetMinX = X;
+    const targetMinY = flipV ? surface.heightCm - Yd - bb.h : Yd;
+    const dx = targetMinX - bb.minX;
+    const dy = targetMinY - bb.minY;
+    const poly = activeSub.polygon.map((p) => ({ x: Math.round(p.x + dx), y: Math.round(p.y + dy) }));
+    updateSubRegionPolygon(surface.id, activeSub.id, poly);
+    setXText(String(Math.round(X)));
+    setYText(String(Math.round(Yd)));
+  };
+
   return (
     <div className="modal-overlay" onClick={() => openSurfaceEditor(null)}>
       <div className="modal surface-editor" onClick={(e) => e.stopPropagation()}>
@@ -568,6 +591,27 @@ export function SurfaceEditor() {
                     </div>
                     <button onClick={resizeActiveSub}>Átméretez</button>
                   </div>
+                </div>
+
+                <h4>Pozíció (cm)</h4>
+                <div className="form-row">
+                  <label className="muted">X</label>
+                  <input
+                    type="number"
+                    style={{ width: 60 }}
+                    value={xText}
+                    onChange={(e) => setXText(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && moveActiveSubTo()}
+                  />
+                  <label className="muted">Y</label>
+                  <input
+                    type="number"
+                    style={{ width: 60 }}
+                    value={yText}
+                    onChange={(e) => setYText(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && moveActiveSubTo()}
+                  />
+                  <button onClick={moveActiveSubTo}>Áthelyez</button>
                 </div>
 
                 <h4>Minta</h4>

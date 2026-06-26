@@ -209,6 +209,31 @@ input[type='color'] { padding: 0; width: 28px; height: 26px; }
 .sub-item .link { flex: 1; }
 .pattern-controls { margin-top: 8px; }
 
+/* numerikus átméretezés: pivot 3×3 + méret-mezők */
+.resize-row { display: flex; gap: 12px; align-items: center; margin: 4px 0 6px; }
+.pivot-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 16px);
+  grid-template-rows: repeat(3, 16px);
+  gap: 2px;
+  background: var(--border);
+  padding: 2px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.pivot-cell {
+  width: 16px; height: 16px;
+  padding: 0;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.pivot-cell:hover { border-color: var(--accent); }
+.pivot-cell.active { background: var(--accent); border-color: var(--accent); }
+.resize-fields { display: flex; flex-direction: column; gap: 4px; }
+.resize-fields .form-row { margin: 0; }
+
 .panel + .panel { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
 .room-list { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
 .room-item { display: flex; align-items: center; gap: 8px; background: var(--panel-2); border-radius: 6px; padding: 4px 8px; }

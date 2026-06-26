@@ -264,6 +264,9 @@ a valódi alak látszik (mint az alaprajzon). Két mód:
   Az aktív alterület **él-hosszai** (cm) is látszanak a vászonra rajzolt címkékként (mint az alaprajzon a
   falhosszok). Csúcs-húzás közben **Shift** = derékszög-igazítás: a `snapRightAngle` a húzott csúcsot a két
   szomszédjához igazítja tengely-igazított (90°-os) élekké.
+  **Numerikus átméretezés:** „Méret (cm)" szakasz egy **3×3 pivot-ráccsal** (mi maradjon helyben: sarkok,
+  oldalfelezők, középpont) + szélesség/magasság mezőkkel. A `resizeActiveSub` a poligont a pivot körül
+  skálázza az új befoglaló-méretre (`sx=W/bb.w, sy=H/bb.h`); falaknál a pivot sorát `flipV` szerint tükrözi.
 - **`cells`**: klikk = egy cella toggle, húzás = gumikeret (a cella **középpontja** alapján). A kijelölés a
   **poligonra van vágva** (`pointInPolygon`). A cellák elforgatottak lehetnek (`rotationDeg`), ezért a
   találat a pontot a cella lokális keretébe transzformálja. **Textúra-vezérlők** (ha a csempének >1 képe van):
@@ -409,6 +412,8 @@ Changelog-ot. A dokumentáció magyarul készül; a kód-azonosítók angolul ma
   `tilePicker.imageIndexFor`/`pickImageUrl` override-paraméter, `setCellImageOverrides` store-akció.
   A szerkesztőben „Textúra léptetése" (kijelölt cellák kép-indexének léptetése, ha a csempének >1 képe van)
   és globális „Véletlen kiosztás" (az alterület összes cellájára véletlen textúra) gomb.
+- **2026-06-26** — **Alterület numerikus átméretezése + pivot:** „Méret (cm)" szakasz 3×3 pivot-ráccsal és
+  W/H mezőkkel; a `resizeActiveSub` a poligont a választott pivot (sarok/oldalfelező/középpont) körül skálázza.
 - **2026-06-26** — **Dobozok szobához rendelve + követik a láthatóságot:** `Box.roomId` (pozíció alapján,
   `roomForPoint`); `addBox`/`updateBox` beállítja, migráció backfilleli; a `SceneContents` kihagyja a rejtett
   szobájú dobozt → szoba elrejtésekor a dobozai is eltűnnek.

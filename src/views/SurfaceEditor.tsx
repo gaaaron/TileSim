@@ -91,11 +91,25 @@ export function SurfaceEditor() {
   const [, force] = useState(0);
   const [assignTileId, setAssignTileId] = useState<string>('');
   const [menu, setMenu] = useState<{ subId: string; index: number; sx: number; sy: number } | null>(null);
+  // numerikus átméretezés: pivot (3×3) + szélesség/magasság szövegmezők
+  const [pivot, setPivot] = useState<{ col: number; row: number }>({ col: 1, row: 1 });
+  const [wText, setWText] = useState('');
+  const [hText, setHText] = useState('');
 
   const images = useImages(surface ? surfaceImageUrls(surface, tileTypes) : []);
 
   const activeSub =
     surface?.subRegions.find((r) => r.id === selectedSubRegionId) ?? surface?.subRegions[0];
+
+  // a méret-mezők szinkronizálása az aktív alterület befoglalójához (váltáskor)
+  useEffect(() => {
+    if (activeSub) {
+      const bb = boundingBox(activeSub.polygon);
+      setWText(String(Math.round(bb.w)));
+      setHText(String(Math.round(bb.h)));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSub?.id]);
 
   const scale = surface ? Math.min(MAX_W / surface.widthCm, MAX_H / surface.heightCm) : 1;
 
@@ -447,6 +461,27 @@ export function SurfaceEditor() {
 
   const canStep = !!activeSub && selectedCells.some((c) => (tileForCell(c)?.images.length ?? 0) > 1);
 
+  // numerikus átméretezés: az alterületet a pivot körül skálázza az új szélességre/magasságra
+  const resizeActiveSub = () => {
+    if (!activeSub) return;
+    const bb = boundingBox(activeSub.polygon);
+    const newW = Math.max(5, Math.round(+wText) || bb.w);
+    const newH = Math.max(5, Math.round(+hText) || bb.h);
+    // a pivot pozíciója a befoglalón (a 3×3 rács alapján); falaknál a sort tükrözzük a megjelenítéshez
+    const vrow = flipV ? 2 - pivot.row : pivot.row;
+    const px = bb.minX + (pivot.col / 2) * bb.w;
+    const py = bb.minY + (vrow / 2) * bb.h;
+    const sx = bb.w > 0 ? newW / bb.w : 1;
+    const sy = bb.h > 0 ? newH / bb.h : 1;
+    const poly = activeSub.polygon.map((p) => ({
+      x: Math.round(px + (p.x - px) * sx),
+      y: Math.round(py + (p.y - py) * sy),
+    }));
+    updateSubRegionPolygon(surface.id, activeSub.id, poly);
+    setWText(String(newW));
+    setHText(String(newH));
+  };
+
   return (
     <div className="modal-overlay" onClick={() => openSurfaceEditor(null)}>
       <div className="modal surface-editor" onClick={(e) => e.stopPropagation()}>
@@ -497,6 +532,44 @@ export function SurfaceEditor() {
 
             {activeSub && (
               <div className="pattern-controls">
+                <h4>Méret (cm)</h4>
+                <div className="resize-row">
+                  <div className="pivot-grid" title="Pivot: mi maradjon helyben átméretezéskor">
+                    {[0, 1, 2].map((row) =>
+                      [0, 1, 2].map((col) => (
+                        <button
+                          key={`${col}_${row}`}
+                          className={'pivot-cell' + (pivot.col === col && pivot.row === row ? ' active' : '')}
+                          onClick={() => setPivot({ col, row })}
+                          title="Pivot pont"
+                        />
+                      )),
+                    )}
+                  </div>
+                  <div className="resize-fields">
+                    <div className="form-row">
+                      <input
+                        type="number"
+                        min={5}
+                        style={{ width: 60 }}
+                        value={wText}
+                        onChange={(e) => setWText(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && resizeActiveSub()}
+                      />
+                      <span>×</span>
+                      <input
+                        type="number"
+                        min={5}
+                        style={{ width: 60 }}
+                        value={hText}
+                        onChange={(e) => setHText(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && resizeActiveSub()}
+                      />
+                    </div>
+                    <button onClick={resizeActiveSub}>Átméretez</button>
+                  </div>
+                </div>
+
                 <h4>Minta</h4>
                 <label>Típus</label>
                 <select

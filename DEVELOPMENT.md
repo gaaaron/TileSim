@@ -94,8 +94,10 @@ App.tsx, main.tsx, styles.css, vite-env.d.ts
 - **`ImageRef`**: `{ id, name, url? }`. A blob az IndexedDB-ben él; az `url` futásidejű object URL
   (nem perzisztált; betöltéskor `hydrateImageUrls` állítja elő).
 - **`Room`**: `{ id, name, floorPolygon: Vec2[] (cm, XZ), heightCm }`.
-- **`Box`**: `{ id, name, pos:{x,y,z}, size:{w,h,d}, rotationY }`. `pos.x/z` = vízszintes hely,
-  `pos.y` = a doboz **aljának** magassága; a doboz közepe `(pos.x, pos.y+h/2, pos.z)`.
+- **`Box`**: `{ id, name, pos:{x,y,z}, size:{w,h,d}, rotationY, roomId? }`. `pos.x/z` = vízszintes hely,
+  `pos.y` = a doboz **aljának** magassága; a doboz közepe `(pos.x, pos.y+h/2, pos.z)`. A `roomId` a doboz
+  szobája (a pozíciója alapján `roomForPoint`-tal; `addBox`/`updateBox`/migráció állítja); a doboz a szoba
+  láthatóságát követi (`SceneContents` kihagyja, ha a szobája rejtett).
 - **`Surface`** (származtatott geometria, lásd 6.1): `{ id, kind:'floor'|'wall'|'box-face', label,
   widthCm, heightCm, transform: SurfaceTransform, subRegions: SubRegion[], baseColor }`.
 - **`SurfaceTransform`**: `{ origin, uAxis, vAxis, normal }` (origin világ-méterben, a tengelyek egységvektorok).
@@ -407,6 +409,9 @@ Changelog-ot. A dokumentáció magyarul készül; a kód-azonosítók angolul ma
   `tilePicker.imageIndexFor`/`pickImageUrl` override-paraméter, `setCellImageOverrides` store-akció.
   A szerkesztőben „Textúra léptetése" (kijelölt cellák kép-indexének léptetése, ha a csempének >1 képe van)
   és globális „Véletlen kiosztás" (az alterület összes cellájára véletlen textúra) gomb.
+- **2026-06-26** — **Dobozok szobához rendelve + követik a láthatóságot:** `Box.roomId` (pozíció alapján,
+  `roomForPoint`); `addBox`/`updateBox` beállítja, migráció backfilleli; a `SceneContents` kihagyja a rejtett
+  szobájú dobozt → szoba elrejtésekor a dobozai is eltűnnek.
 - **2026-06-26** — **Alterület él-hosszok + Shift-derékszög:** az aktív alterület éleinek hossza látszik a
   szerkesztőben (mint a falhosszok); csúcs-húzásnál Shift → `snapRightAngle` (a csúcs a szomszédaihoz igazodik
   derékszögűre). **Bugfix:** a debounce-olt autosave mostantól a LEGFRISSEBB projektet menti (`scheduleSave`

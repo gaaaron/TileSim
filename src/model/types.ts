@@ -54,6 +54,8 @@ export interface Box {
   size: { w: number; h: number; d: number };
   /** Forgatás Y tengely körül, fok. */
   rotationY: number;
+  /** Melyik szobához tartozik (a pozíciója alapján; a szoba láthatóságát követi). */
+  roomId?: Id;
 }
 
 /** Egy csempézhető felület típusa. */

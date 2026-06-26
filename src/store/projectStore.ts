@@ -10,7 +10,7 @@ import {
   TileType,
   uid,
 } from '../model/types';
-import { allSurfaces } from '../model/geometry';
+import { allSurfaces, roomForPoint } from '../model/geometry';
 import {
   exportProjectBlob,
   hydrateImageUrls,
@@ -60,6 +60,12 @@ function migrateProject(project: Project): Project {
         delete sub.rect;
       }
       sub.imageOverrides ??= {};
+    }
+  }
+  // dobozok szobához rendelése (pozíció alapján), ha még nincs
+  for (const box of project.boxes) {
+    if (!box.roomId) {
+      box.roomId = (roomForPoint(project.rooms, box.pos.x, box.pos.z) ?? project.rooms[0])?.id;
     }
   }
   return project;
@@ -362,13 +368,19 @@ export const useStore = create<State>((set, get) => {
           pos: { x: cx, y: 0, z: cz },
           size: { w: 60, h: 80, d: 60 },
           rotationY: 0,
+          roomId: (roomForPoint(p.rooms, cx, cz) ?? p.rooms[0])?.id,
         });
         return p;
       }),
     updateBox: (id, patch) =>
       mutate((p) => {
         const b = p.boxes.find((x) => x.id === id);
-        if (b) Object.assign(b, patch);
+        if (b) {
+          Object.assign(b, patch);
+          // a doboz ahhoz a szobához tartozik, amelyikben épp van (ha van ilyen)
+          const r = roomForPoint(p.rooms, b.pos.x, b.pos.z);
+          if (r) b.roomId = r.id;
+        }
         return p;
       }),
     removeBox: (id) =>

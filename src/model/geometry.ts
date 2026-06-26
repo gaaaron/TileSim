@@ -196,6 +196,11 @@ export function surfaceToWorld(t: SurfaceTransform, u: number, v: number): Vec3 
   );
 }
 
+/** Az a szoba, amelynek alaprajza tartalmazza az (x,z) pontot (cm); vagy undefined. */
+export function roomForPoint(rooms: Room[], x: number, z: number): Room | undefined {
+  return rooms.find((r) => pointInPolygon(r.floorPolygon, { x, y: z }));
+}
+
 /** Pont-a-poligonban teszt (ray casting). poly és p azonos térben (cm). */
 export function pointInPolygon(poly: Vec2[], p: Vec2): boolean {
   let inside = false;

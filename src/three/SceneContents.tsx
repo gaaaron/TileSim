@@ -50,6 +50,7 @@ export function SceneContents({ mode }: Props) {
       })}
 
       {project.boxes.map((box) => {
+        if (box.roomId && project.roomHidden?.[box.roomId]) return null;
         const faces = surfaces.filter((s) => s.id.startsWith(`${box.id}:face:`) && !s.hidden);
         return (
           <BoxGroup key={box.id} box={box} faces={faces} tileTypes={project.tileTypes} mode={mode} />

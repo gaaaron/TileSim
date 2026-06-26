@@ -151,16 +151,19 @@ interface State {
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
-function scheduleSave(project: Project) {
-  if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => saveProject(project).catch(console.error), 400);
-}
 
 // Húzás közben (mozgatás/átméretezés) NEM rakunk minden mozdulatot a history-ba:
 // a beginDrag egyszer pillanatképet ment, a köztes mutációk pedig elnyomják a push-t.
 let suppressHistory = false;
 
 export const useStore = create<State>((set, get) => {
+  // debounce-olt autosave: MINDIG a legfrissebb projektet menti (nem egy elavult pillanatképet),
+  // különben egy késleltetett mentés felülírhatna pl. egy importot
+  const scheduleSave = () => {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => saveProject(get().project).catch(console.error), 400);
+  };
+
   // segéd: mutáció history-val + autosave-vel
   const mutate = (fn: (p: Project) => Project) => {
     const prev = get().project;
@@ -170,7 +173,7 @@ export const useStore = create<State>((set, get) => {
     } else {
       set({ project: next, past: [...get().past, prev].slice(-50), future: [] });
     }
-    scheduleSave(next);
+    scheduleSave();
   };
 
   return {
@@ -475,14 +478,14 @@ export const useStore = create<State>((set, get) => {
       if (!past.length) return;
       const prev = past[past.length - 1];
       set({ project: prev, past: past.slice(0, -1), future: [project, ...future] });
-      scheduleSave(prev);
+      scheduleSave();
     },
     redo: () => {
       const { past, project, future } = get();
       if (!future.length) return;
       const next = future[0];
       set({ project: next, past: [...past, project], future: future.slice(1) });
-      scheduleSave(next);
+      scheduleSave();
     },
   };
 });

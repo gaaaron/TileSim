@@ -259,6 +259,9 @@ a valódi alak látszik (mint az alaprajzon). Két mód:
   - **dupla katt egy élre** → új csúcspont (`nearestEdge` + `insertSubRegionVertex`),
   - **csúcspontra kattintva** (mozgás nélkül) → context menu „Pont törlése" (`deleteSubRegionVertex`, ≥3).
   A `beginDrag`-et csak az első tényleges mozdulatnál hívjuk (≥2 cm) → klikk ≠ undo-lépés; húzás = egy lépés.
+  Az aktív alterület **él-hosszai** (cm) is látszanak a vászonra rajzolt címkékként (mint az alaprajzon a
+  falhosszok). Csúcs-húzás közben **Shift** = derékszög-igazítás: a `snapRightAngle` a húzott csúcsot a két
+  szomszédjához igazítja tengely-igazított (90°-os) élekké.
 - **`cells`**: klikk = egy cella toggle, húzás = gumikeret (a cella **középpontja** alapján). A kijelölés a
   **poligonra van vágva** (`pointInPolygon`). A cellák elforgatottak lehetnek (`rotationDeg`), ezért a
   találat a pontot a cella lokális keretébe transzformálja. **Textúra-vezérlők** (ha a csempének >1 képe van):
@@ -345,6 +348,9 @@ UI: „⭳ Export" / „⭱ Import" gomb a toolbarban (rejtett file-input). A `m
 13. **Fal-szerkesztő v-iránya:** a falaknál `v=0` a padló (vAxis felfelé), de a szerkesztő canvasa lefelé
     rajzol → enélkül a „lent" kijelölés a fal tetejére esne. Megoldás: `flipV` a vertikális-vAxis felületekre
     (lásd 10). A 3D leképzés helyes volt, csak a szerkesztő megjelenítése tükröződött az intuícióhoz.
+14. **Debounce-olt autosave pillanatkép:** a `scheduleSave` korábban a mutáció `next` pillanatképét mentette
+    400 ms késéssel. Ha közben más felülírta a projektet (pl. `importProject`), a késleltetett mentés a RÉGI
+    állapotot írta vissza. Megoldás: a `scheduleSave` fire-kor `get().project`-et ment (mindig a legfrissebbet).
 
 ## 13. Tesztelés és böngészős verifikáció
 
@@ -401,6 +407,11 @@ Changelog-ot. A dokumentáció magyarul készül; a kód-azonosítók angolul ma
   `tilePicker.imageIndexFor`/`pickImageUrl` override-paraméter, `setCellImageOverrides` store-akció.
   A szerkesztőben „Textúra léptetése" (kijelölt cellák kép-indexének léptetése, ha a csempének >1 képe van)
   és globális „Véletlen kiosztás" (az alterület összes cellájára véletlen textúra) gomb.
+- **2026-06-26** — **Alterület él-hosszok + Shift-derékszög:** az aktív alterület éleinek hossza látszik a
+  szerkesztőben (mint a falhosszok); csúcs-húzásnál Shift → `snapRightAngle` (a csúcs a szomszédaihoz igazodik
+  derékszögűre). **Bugfix:** a debounce-olt autosave mostantól a LEGFRISSEBB projektet menti (`scheduleSave`
+  `get().project`-et olvas fire-kor), nem egy elavult pillanatképet — különben egy késleltetett mentés
+  felülírhatott pl. egy importot.
 - **2026-06-26** — **Export/Import (mindennel, a textúrákkal):** `exportProjectBlob`/`importProjectFile`
   (storage), `exportProject`/`importProject` store-akciók, „⭳ Export"/„⭱ Import" toolbar-gombok. A teljes
   projekt + képek egyetlen `.tilesim.json`-ban (base64 textúrák). A migráció kiemelve `migrateProject`-be.

@@ -29,6 +29,29 @@ function hitVertex(poly: Pt[], p: Pt, rCm: number): number {
   return -1;
 }
 
+/**
+ * A `V` csúcsot a két szomszédjához (P, N) igazítja úgy, hogy a hozzájuk vezető élek
+ * tengely-igazítottak (derékszögűek) legyenek (Shift „kiegyenesítés").
+ */
+function snapRightAngle(V: Pt, P: Pt, N: Pt): Pt {
+  // mindkét szomszédnál: a kisebbik eltérésű tengelyre illesztünk (az lesz a derékszögű él)
+  const cand = (Q: Pt) => {
+    const dx = Math.abs(V.x - Q.x);
+    const dy = Math.abs(V.y - Q.y);
+    return dx < dy
+      ? { axis: 'x' as const, val: Q.x, strength: dy - dx }
+      : { axis: 'y' as const, val: Q.y, strength: dx - dy };
+  };
+  let bestX: { val: number; strength: number } | null = null;
+  let bestY: { val: number; strength: number } | null = null;
+  for (const c of [cand(P), cand(N)]) {
+    if (c.axis === 'x') {
+      if (!bestX || c.strength > bestX.strength) bestX = c;
+    } else if (!bestY || c.strength > bestY.strength) bestY = c;
+  }
+  return { x: bestX ? bestX.val : V.x, y: bestY ? bestY.val : V.y };
+}
+
 /** A teljes poligon eltolása (dx,dy)-vel úgy, hogy a befoglalója a felületen belül maradjon. */
 function translatePoly(poly: Pt[], dx: number, dy: number, W: number, H: number): Pt[] {
   const bb = boundingBox(poly);
@@ -162,12 +185,31 @@ export function SurfaceEditor() {
       ctx.restore();
     }
 
-    // aktív alterület csúcspont-fogantyúi (alterület módban)
+    // aktív alterület él-hosszai + csúcspont-fogantyúi (alterület módban)
     if (activeSub && mode === 'region') {
+      // él-hossz címkék (mint az alaprajzon a falhosszok)
+      ctx.font = '11px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const poly = activeSub.polygon;
+      for (let i = 0; i < poly.length; i++) {
+        const a = poly[i];
+        const b = poly[(i + 1) % poly.length];
+        const len = Math.round(Math.hypot(b.x - a.x, b.y - a.y));
+        const mx = ((a.x + b.x) / 2) * scale;
+        const my = (vy(a.y) + vy(b.y)) / 2;
+        const text = `${len} cm`;
+        const tw = ctx.measureText(text).width;
+        ctx.fillStyle = 'rgba(0,0,0,0.66)';
+        ctx.fillRect(mx - tw / 2 - 4, my - 8, tw + 8, 16);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(text, mx, my);
+      }
+      // fogantyúk
       ctx.fillStyle = '#ffffff';
       ctx.strokeStyle = '#22c55e';
       ctx.lineWidth = 1.5;
-      for (const v of activeSub.polygon) {
+      for (const v of poly) {
         const cx = v.x * scale;
         const cy = vy(v.y);
         ctx.fillRect(cx - HANDLE_PX / 2, cy - HANDLE_PX / 2, HANDLE_PX, HANDLE_PX);
@@ -257,7 +299,20 @@ export function SurfaceEditor() {
         beginDrag();
         op.started = true;
       }
-      if (op.started) moveSubRegionVertex(surface.id, op.subId, op.index, Math.round(p.x), Math.round(p.y));
+      if (op.started) {
+        let np = p;
+        // Shift: a csúcs derékszögűre igazítása a két szomszédjához képest
+        if (e.shiftKey) {
+          const sub = surface.subRegions.find((s) => s.id === op.subId);
+          if (sub && sub.polygon.length >= 3) {
+            const n = sub.polygon.length;
+            const P = sub.polygon[(op.index - 1 + n) % n];
+            const N = sub.polygon[(op.index + 1) % n];
+            np = snapRightAngle(p, P, N);
+          }
+        }
+        moveSubRegionVertex(surface.id, op.subId, op.index, Math.round(np.x), Math.round(np.y));
+      }
       return;
     }
     if (op?.kind === 'move') {
@@ -421,7 +476,7 @@ export function SurfaceEditor() {
             </div>
             <p className="muted small">
               {mode === 'region'
-                ? 'Üres helyre húzva új alterület. Csúcspontot húzva mozgatsz, belül húzva az egészet mozgatod. Dupla katt egy élre = új pont; csúcspontra kattintva törölhető.'
+                ? 'Üres helyre húzva új alterület. Csúcspontot húzva mozgatsz (Shift = derékszög), belül húzva az egészet mozgatod. Dupla katt egy élre = új pont; csúcspontra kattintva törölhető.'
                 : 'Kattints/húzz a cellák kijelöléséhez, majd rendelj hozzájuk csempét.'}
             </p>
 

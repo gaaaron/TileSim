@@ -6,6 +6,7 @@ import { SurfaceEditor } from './views/SurfaceEditor';
 import { TileLibraryPanel } from './panels/TileLibraryPanel';
 import { RoomsPanel } from './panels/RoomsPanel';
 import { SurfacesPanel } from './panels/SurfacesPanel';
+import { MaterialPanel } from './panels/MaterialPanel';
 import { BoxInspector } from './panels/BoxInspector';
 import { CollapsibleGroup } from './ui/CollapsibleGroup';
 import { ErrorBoundary } from './ui/ErrorBoundary';
@@ -106,6 +107,9 @@ export default function App() {
           </CollapsibleGroup>
           <CollapsibleGroup title="Csempék">
             <TileLibraryPanel />
+          </CollapsibleGroup>
+          <CollapsibleGroup title="Anyagszükséglet" defaultOpen={false}>
+            <MaterialPanel />
           </CollapsibleGroup>
         </aside>
         <main className="viewport">

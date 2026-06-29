@@ -105,6 +105,20 @@ input[type='color'] { padding: 0; width: 28px; height: 26px; }
 .surface-row .link { flex: 1; padding: 2px; }
 .surface-row .link.dim { color: var(--muted); text-decoration: line-through; }
 
+/* Anyagszükséglet panel */
+.material-list { display: flex; flex-direction: column; gap: 2px; }
+.material-row {
+  display: grid;
+  grid-template-columns: 1fr 48px 56px;
+  gap: 6px;
+  align-items: center;
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+.material-row > span:not(.link) { text-align: right; font-variant-numeric: tabular-nums; }
+.material-head { color: var(--muted); border-bottom: 1px solid var(--border); }
+.material-total { border-top: 1px solid var(--border); font-weight: 600; margin-top: 2px; }
+
 /* láthatóság-checkbox a szerkesztő fejlécében */
 .vis-toggle {
   display: flex;

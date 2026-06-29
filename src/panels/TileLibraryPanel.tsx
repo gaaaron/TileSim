@@ -51,7 +51,9 @@ export function TileLibraryPanel() {
               {t.images.map((img) => (
                 <img key={img.id} src={img.url} alt={img.name} className="thumb" />
               ))}
-              {t.images.length === 0 && <span className="muted">nincs kép</span>}
+              {t.images.length === 0 && (
+                <span className="thumb" style={{ background: t.color ?? '#c9c4b8' }} title="Sima szín" />
+              )}
             </div>
 
             <div className="form-row">

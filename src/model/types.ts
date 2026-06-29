@@ -29,6 +29,10 @@ export interface TileType {
   widthCm: number;
   heightCm: number;
   images: ImageRef[];
+  /** Sima szín, ha nincs feltöltött kép (kép helyett ezzel renderel). */
+  color: string;
+  /** Fényesség 0..1 (0 = matt, 1 = fényes). A 3D-ben az érdesség-térképet vezérli. */
+  glossiness: number;
   /** Fuga vastagság mm-ben. */
   groutMm: number;
   /** Fuga szín. */

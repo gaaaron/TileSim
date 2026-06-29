@@ -98,15 +98,24 @@ function pixelsPerCm(widthCm: number, heightCm: number, maxPx: number): number {
   return Math.min(6, Math.max(1, maxPx / longest));
 }
 
+/** Matt alap érdesség (szürkeárnyalat 0..255). */
+const MATTE_GRAY = Math.round(0.9 * 255);
+/** Fényesség (0..1) → érdesség szürkeárnyalat (0 = matt → világos; 1 = fényes → sötét). */
+function roughGray(gloss: number): number {
+  return Math.round(Math.max(0.05, 0.9 - (gloss ?? 0) * 0.85) * 255);
+}
+const gray = (v: number) => `rgb(${v},${v},${v})`;
+
 /**
- * Egy felület canvas-textúrája. (u,v) → canvas pixel: u jobbra, v lefelé (top-left origó).
+ * Egy felület színtextúrája + érdesség-térképe. (u,v) → canvas pixel: u jobbra, v lefelé.
+ * A színnél kép híján a csempe `color`-ja; az érdesség-térkép a csempe `glossiness`-éből jön.
  */
 export function renderSurfaceCanvas(
   surface: Surface,
   tileTypes: TileType[],
   images: Map<string, HTMLImageElement>,
   maxPx = 2048,
-): { canvas: HTMLCanvasElement; ppc: number } {
+): { canvas: HTMLCanvasElement; roughnessCanvas: HTMLCanvasElement; ppc: number } {
   const ppc = pixelsPerCm(surface.widthCm, surface.heightCm, maxPx);
   const W = Math.max(1, Math.round(surface.widthCm * ppc));
   const H = Math.max(1, Math.round(surface.heightCm * ppc));
@@ -114,16 +123,20 @@ export function renderSurfaceCanvas(
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext('2d')!;
+  const roughnessCanvas = document.createElement('canvas');
+  roughnessCanvas.width = W;
+  roughnessCanvas.height = H;
+  const rctx = roughnessCanvas.getContext('2d')!;
 
   ctx.fillStyle = surface.baseColor;
   ctx.fillRect(0, 0, W, H);
+  rctx.fillStyle = gray(MATTE_GRAY);
+  rctx.fillRect(0, 0, W, H);
 
-  const pathPolygon = (poly: { x: number; y: number }[]) => {
-    ctx.beginPath();
-    poly.forEach((p, i) =>
-      i === 0 ? ctx.moveTo(p.x * ppc, p.y * ppc) : ctx.lineTo(p.x * ppc, p.y * ppc),
-    );
-    ctx.closePath();
+  const pathPolygon = (c: CanvasRenderingContext2D, poly: { x: number; y: number }[]) => {
+    c.beginPath();
+    poly.forEach((p, i) => (i === 0 ? c.moveTo(p.x * ppc, p.y * ppc) : c.lineTo(p.x * ppc, p.y * ppc)));
+    c.closePath();
   };
 
   for (const sub of surface.subRegions) {
@@ -132,18 +145,24 @@ export function renderSurfaceCanvas(
     const groutColor = tile?.groutColor ?? '#cccccc';
 
     ctx.save();
-    // klippelés az alterület POLIGONJÁRA
-    pathPolygon(sub.polygon);
+    pathPolygon(ctx, sub.polygon);
     ctx.clip();
-    // fuga háttér
     ctx.fillStyle = groutColor;
     ctx.fill();
+
+    rctx.save();
+    pathPolygon(rctx, sub.polygon);
+    rctx.clip();
+    rctx.fillStyle = gray(MATTE_GRAY); // fuga matt
+    rctx.fill();
 
     for (const cell of subRegionTiles(sub, tileTypes)) {
       const tt = tileTypes.find((t) => t.id === cell.tileTypeId);
       const dw = (cell.w - groutCm) * ppc;
       const dh = (cell.h - groutCm) * ppc;
       if (dw <= 0 || dh <= 0) continue;
+
+      // szín: kép vagy a csempe sima színe
       const url = pickImageUrl(tt, cell.cellId, sub.imageOverrides?.[cell.cellId]);
       const img = url ? images.get(url) : undefined;
       ctx.save();
@@ -151,22 +170,30 @@ export function renderSurfaceCanvas(
       if (cell.rotationDeg) ctx.rotate((cell.rotationDeg * Math.PI) / 180);
       if (img) {
         if (sub.pattern.tileRotated) {
-          // a kép is 90°-kal forog; a rajzolt méreteket felcseréljük, hogy kitöltse a cellát
           ctx.rotate(Math.PI / 2);
           ctx.drawImage(img, -dh / 2, -dw / 2, dh, dw);
         } else {
           ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh);
         }
       } else {
-        ctx.fillStyle = tt ? '#d8cdbb' : '#b9b3a6';
+        ctx.fillStyle = tt?.color ?? (tt ? '#d8cdbb' : '#b9b3a6');
         ctx.fillRect(-dw / 2, -dh / 2, dw, dh);
       }
       ctx.restore();
+
+      // érdesség: a csempe fényessége
+      rctx.save();
+      rctx.translate(cell.cx * ppc, cell.cy * ppc);
+      if (cell.rotationDeg) rctx.rotate((cell.rotationDeg * Math.PI) / 180);
+      rctx.fillStyle = gray(roughGray(tt?.glossiness ?? 0));
+      rctx.fillRect(-dw / 2, -dh / 2, dw, dh);
+      rctx.restore();
     }
     ctx.restore();
+    rctx.restore();
   }
 
-  return { canvas, ppc };
+  return { canvas, roughnessCanvas, ppc };
 }
 
 /** Egy felület összes kép-url-je (előtöltéshez). */

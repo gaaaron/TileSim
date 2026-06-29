@@ -17,7 +17,7 @@ const EDGE_INSERT_CM = 25;
 
 /** Tetszőleges alakú padló háromszögelve, a padló-textúrával. */
 export function FloorMesh({ room, surface, tileTypes }: Props) {
-  const texture = useSurfaceTexture(surface, tileTypes);
+  const { map, roughnessMap } = useSurfaceTexture(surface, tileTypes);
   const selectSurface = useStore((s) => s.selectSurface);
   const openSurfaceEditor = useStore((s) => s.openSurfaceEditor);
   const insertRoomVertex = useStore((s) => s.insertRoomVertex);
@@ -65,7 +65,13 @@ export function FloorMesh({ room, surface, tileTypes }: Props) {
         openSurfaceEditor(surface.id);
       }}
     >
-      <meshStandardMaterial map={texture} side={THREE.DoubleSide} roughness={0.9} metalness={0} />
+      <meshStandardMaterial
+        map={map}
+        roughnessMap={roughnessMap}
+        side={THREE.DoubleSide}
+        roughness={1}
+        metalness={0}
+      />
     </mesh>
   );
 }

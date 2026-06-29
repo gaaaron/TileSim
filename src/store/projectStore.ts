@@ -47,6 +47,10 @@ function migrateProject(project: Project): Project {
   project.tileTypes ??= [];
   project.surfaceHidden ??= {};
   project.roomHidden ??= {};
+  for (const t of project.tileTypes) {
+    t.color ??= '#c9c4b8';
+    t.glossiness ??= 0;
+  }
   for (const list of Object.values(project.surfaceData)) {
     for (const sub of list as Array<SubRegion & { rect?: { u: number; v: number; w: number; h: number } }>) {
       if (!sub.polygon && sub.rect) {
@@ -265,6 +269,8 @@ export const useStore = create<State>((set, get) => {
           widthCm,
           heightCm,
           images: [],
+          color: '#c9c4b8',
+          glossiness: 0,
           groutMm: 3,
           groutColor: '#cccccc',
         });

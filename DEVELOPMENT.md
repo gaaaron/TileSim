@@ -63,7 +63,7 @@ render/
   imageCache.ts     # kép betöltés + useImages() React hook
 three/
   pose.ts            # surfacePose(): felület → 3D pozíció + kvaternió (JOBBKEZES bázis!)
-  useSurfaceTexture.ts # Surface → élő THREE.CanvasTexture (memoizált)
+  useSurfaceTexture.ts # Surface → élő szín- + érdesség-CanvasTexture ({map, roughnessMap})
   SurfacePlane.tsx   # fal / doboz-oldal mint textúrázott plane (Front/Back/DoubleSide)
   FloorMesh.tsx      # padló-poligon háromszögelve + textúra; plan: él-közeli dupla katt → új csúcspont
   BoxGroup.tsx       # doboz 6 oldala + plan-nézeti húzás (+ kamera-lock + beginDrag/endDrag)
@@ -89,7 +89,8 @@ App.tsx, main.tsx, styles.css, vite-env.d.ts
 
 ## 5. Adatmodell (`model/types.ts`)
 
-- **`TileType`**: `{ id, name, widthCm, heightCm, images: ImageRef[], groutMm, groutColor }`.
+- **`TileType`**: `{ id, name, widthCm, heightCm, images: ImageRef[], color, glossiness, groutMm, groutColor }`.
+  A `color` kép híján a csempe sima színe; a `glossiness` (0..1) a 3D fényességet adja (érdesség-térképen át).
   Egy típushoz több kép is tartozhat → vegyes lerakás.
 - **`ImageRef`**: `{ id, name, url? }`. A blob az IndexedDB-ben él; az `url` futásidejű object URL
   (nem perzisztált; betöltéskor `hydrateImageUrls` állítja elő).
@@ -180,8 +181,12 @@ a felület `(u,v)` terében (cm). Az itteni „rect" = az alterület **poligonj�
 - Canvas mérete `widthCm*ppc × heightCm*ppc` (`ppc` = pixel/cm, max ~2048 px-re skálázva).
 - Felületenként/alterületenként: klippelés az alterület **poligonjára**, fuga-háttér kitöltés, majd minden cellára:
   `translate(cx,cy) → rotate(rotationDeg) → drawImage középre igazítva, grout/2 behúzással`.
-  Kép hiányában tömör szín.
-- Visszaad `{canvas, ppc}`. Hívó `THREE.CanvasTexture`-be csomagolja (`flipY=false`, sRGB).
+  **Kép hiányában a csempe `color`-ja** (sima szín).
+- Egyúttal egy **érdesség-térképet** is rajzol (`roughnessCanvas`): minden cella a fényességéből számolt
+  szürkeárnyalattal (`roughGray(glossiness)`; matt = világos, fényes = sötét), a fuga matt.
+- Visszaad `{canvas, roughnessCanvas, ppc}`. A `useSurfaceTexture` ebből `{map, roughnessMap}` CanvasTexture-t
+  ad (a `map` sRGB+flipY=false; a `roughnessMap` lineáris). A 3D anyagok: `map`, `roughnessMap`, `roughness=1`
+  (így a térkép vezérli a fényességet).
 
 `surfaceImageUrls(surface, tileTypes)`: az előtöltendő kép-url-ek (a `useImages` hookhoz).
 
@@ -414,6 +419,12 @@ Changelog-ot. A dokumentáció magyarul készül; a kód-azonosítók angolul ma
   `tilePicker.imageIndexFor`/`pickImageUrl` override-paraméter, `setCellImageOverrides` store-akció.
   A szerkesztőben „Textúra léptetése" (kijelölt cellák kép-indexének léptetése, ha a csempének >1 képe van)
   és globális „Véletlen kiosztás" (az alterület összes cellájára véletlen textúra) gomb.
+- **2026-06-26** — **Anyagszükséglet panel** (`MaterialPanel`, alapból csukott `CollapsibleGroup` → csak
+  nyitva számol): csempénként db + m² (cella középpontja a poligonban = 1 db, a vágott is; m² = db × csempeterület).
+- **2026-06-26** — **Csempe sima szín + fényesség:** `TileType.color` (kép híján ezzel renderel) és
+  `glossiness` (0..1). A renderer érdesség-térképet is gyárt (`roughnessCanvas`), a `useSurfaceTexture`
+  `{map, roughnessMap}`-et ad, a 3D anyagok `roughnessMap`-pel renderelnek. `TileInspector`: szín-választó +
+  fényesség-csúszka; a kártyán szín-minta kép híján.
 - **2026-06-26** — **Alterület numerikus átméretezése + pivot:** „Méret (cm)" szakasz 3×3 pivot-ráccsal és
   W/H mezőkkel; a `resizeActiveSub` a poligont a választott pivot (sarok/oldalfelező/középpont) körül skálázza.
   + **Numerikus pozíció** (X/Y mezők, `moveActiveSubTo`): az alterületet a megadott bal-felső sarokra tolja.

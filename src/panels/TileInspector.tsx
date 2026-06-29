@@ -49,6 +49,32 @@ export function TileInspector({ tileId, onClose }: Props) {
           </div>
 
           <div className="form-row">
+            <label>Szín</label>
+            <input
+              type="color"
+              value={tile.color ?? '#c9c4b8'}
+              onChange={(e) => updateTileType(tile.id, { color: e.target.value })}
+            />
+            <span className="muted small">
+              {tile.images.length > 0 ? '(kép esetén nem látszik)' : 'kép helyett ezzel renderel'}
+            </span>
+          </div>
+
+          <div className="form-row">
+            <label>Fényesség</label>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              style={{ flex: 1 }}
+              value={tile.glossiness ?? 0}
+              onChange={(e) => updateTileType(tile.id, { glossiness: +e.target.value })}
+            />
+            <span className="muted small">{Math.round((tile.glossiness ?? 0) * 100)}%</span>
+          </div>
+
+          <div className="form-row">
             <label>Fuga</label>
             <input
               type="number"

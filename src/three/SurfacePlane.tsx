@@ -14,7 +14,7 @@ interface Props {
 
 /** Planáris csempézhető felület (fal vagy doboz-oldal). */
 export function SurfacePlane({ surface, tileTypes, interactive = true }: Props) {
-  const texture = useSurfaceTexture(surface, tileTypes);
+  const { map, roughnessMap } = useSurfaceTexture(surface, tileTypes);
   const { position, quaternion, width, height, frontFacesDesired } = surfacePose(surface);
   const selectedSurfaceId = useStore((s) => s.selectedSurfaceId);
   const selectSurface = useStore((s) => s.selectSurface);
@@ -48,9 +48,10 @@ export function SurfacePlane({ surface, tileTypes, interactive = true }: Props) 
     <mesh position={position} quaternion={quaternion} onClick={onClick} onDoubleClick={onDouble}>
       <planeGeometry args={[width, height]} />
       <meshStandardMaterial
-        map={texture}
+        map={map}
+        roughnessMap={roughnessMap}
         side={side}
-        roughness={0.85}
+        roughness={1}
         metalness={0}
         emissive={selected ? new THREE.Color('#2a4d6e') : new THREE.Color('#000000')}
         emissiveIntensity={selected ? 0.35 : 0}

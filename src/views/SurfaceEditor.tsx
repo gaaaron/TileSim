@@ -81,6 +81,7 @@ export function SurfaceEditor() {
   const beginDrag = useStore((s) => s.beginDrag);
   const endDrag = useStore((s) => s.endDrag);
   const toggleSurfaceHidden = useStore((s) => s.toggleSurfaceHidden);
+  const setSurfaceBaseColor = useStore((s) => s.setSurfaceBaseColor);
   const openSurfaceEditor = useStore((s) => s.openSurfaceEditor);
 
   const surface = surfaces.find((s) => s.id === editingSurfaceId);
@@ -471,8 +472,8 @@ export function SurfaceEditor() {
   const resizeActiveSub = () => {
     if (!activeSub) return;
     const bb = boundingBox(activeSub.polygon);
-    const newW = Math.max(5, Math.round(+wText) || bb.w);
-    const newH = Math.max(5, Math.round(+hText) || bb.h);
+    const newW = Math.max(1, Math.round(+wText) || bb.w);
+    const newH = Math.max(1, Math.round(+hText) || bb.h);
     // a pivot pozíciója a befoglalón (a 3×3 rács alapján); falaknál a sort tükrözzük a megjelenítéshez
     const vrow = flipV ? 2 - pivot.row : pivot.row;
     const px = bb.minX + (pivot.col / 2) * bb.w;
@@ -513,6 +514,14 @@ export function SurfaceEditor() {
           <span className="muted">
             {Math.round(surface.widthCm)}×{Math.round(surface.heightCm)} cm
           </span>
+          <label className="vis-toggle" title="Az oldal alapszíne (csempe nélküli rész)">
+            Alapszín
+            <input
+              type="color"
+              value={surface.baseColor}
+              onChange={(e) => setSurfaceBaseColor(surface.id, e.target.value)}
+            />
+          </label>
           <label className="vis-toggle" title="A fal megjelenítése a 3D nézetben">
             <input type="checkbox" checked={!surface.hidden} onChange={() => toggleSurfaceHidden(surface.id)} />
             Látható
@@ -573,7 +582,7 @@ export function SurfaceEditor() {
                     <div className="form-row">
                       <input
                         type="number"
-                        min={5}
+                        min={1}
                         style={{ width: 60 }}
                         value={wText}
                         onChange={(e) => setWText(e.target.value)}
@@ -582,7 +591,7 @@ export function SurfaceEditor() {
                       <span>×</span>
                       <input
                         type="number"
-                        min={5}
+                        min={1}
                         style={{ width: 60 }}
                         value={hText}
                         onChange={(e) => setHText(e.target.value)}

@@ -7,7 +7,9 @@ import { TileLibraryPanel } from './panels/TileLibraryPanel';
 import { RoomsPanel } from './panels/RoomsPanel';
 import { SurfacesPanel } from './panels/SurfacesPanel';
 import { MaterialPanel } from './panels/MaterialPanel';
+import { ObjectsPanel } from './panels/ObjectsPanel';
 import { BoxInspector } from './panels/BoxInspector';
+import { ObjectInspector } from './panels/ObjectInspector';
 import { CollapsibleGroup } from './ui/CollapsibleGroup';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 
@@ -108,6 +110,9 @@ export default function App() {
           <CollapsibleGroup title="Csempék">
             <TileLibraryPanel />
           </CollapsibleGroup>
+          <CollapsibleGroup title="3D objektumok" defaultOpen={false}>
+            <ObjectsPanel />
+          </CollapsibleGroup>
           <CollapsibleGroup title="Anyagszükséglet" defaultOpen={false}>
             <MaterialPanel />
           </CollapsibleGroup>
@@ -120,6 +125,7 @@ export default function App() {
               : 'Tipp: forgatás bal egér, dupla katt egy falra/padlóra/oldalra = csempe-szerkesztő.'}
           </div>
           <BoxInspector />
+          <ObjectInspector />
         </main>
       </div>
 

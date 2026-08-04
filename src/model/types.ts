@@ -62,8 +62,31 @@ export interface Box {
   roomId?: Id;
 }
 
+/** Feltöltött 3D modell (GLB/glTF). A blob az IndexedDB-ben él. */
+export interface ModelAsset {
+  id: Id;
+  name: string;
+  /** A modell natív befoglaló mérete cm-ben (a méretezéshez; 1 modell-egység ≈ 1 m). */
+  naturalSize: { w: number; h: number; d: number };
+  /** Futásidejű object URL (nem perzisztált). */
+  url?: string;
+}
+
+/** Elhelyezett 3D objektum (egy ModelAsset példánya). A dobozhoz hasonló mozgatás/méret. */
+export interface SceneObject {
+  id: Id;
+  name: string;
+  modelId: Id;
+  /** pos.x/z = vízszintes hely (cm), pos.y = az alja magassága (cm). */
+  pos: Vec3;
+  /** Cél befoglaló méret cm-ben (a modellt erre skálázzuk). */
+  size: { w: number; h: number; d: number };
+  rotationY: number;
+  roomId?: Id;
+}
+
 /** Egy csempézhető felület típusa. */
-export type SurfaceKind = 'floor' | 'wall' | 'box-face';
+export type SurfaceKind = 'floor' | 'ceiling' | 'wall' | 'box-face';
 
 /**
  * Egy felület 2D (u,v) terét a világba leképező transzformáció.
@@ -130,12 +153,18 @@ export interface Project {
   tileTypes: TileType[];
   rooms: Room[];
   boxes: Box[];
+  /** Feltöltött 3D modellek (GLB). */
+  models: ModelAsset[];
+  /** Elhelyezett 3D objektumok. */
+  objects: SceneObject[];
   /** Felület-szerkesztések: surfaceId → SubRegion-ök. A felületek geometriája származtatott. */
   surfaceData: Record<string, SubRegion[]>;
   /** Elrejtett felületek: surfaceId → true (a 3D megjelenítésből kihagyva). */
   surfaceHidden: Record<string, boolean>;
   /** Elrejtett szobák: roomId → true (a padló + falai nem jelennek meg). */
   roomHidden: Record<string, boolean>;
+  /** Felület alapszín-felülírás: surfaceId → szín (a származtatott alapszín helyett). */
+  surfaceBaseColor: Record<string, string>;
 }
 
 export function uid(prefix = ''): Id {

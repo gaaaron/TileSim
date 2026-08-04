@@ -8,15 +8,17 @@ import { useSurfaceTexture } from './useSurfaceTexture';
 
 interface Props {
   room: Room;
-  surface: Surface; // a padló-felület (subRegion adatokkal)
+  surface: Surface; // a padló- vagy mennyezet-felület (subRegion adatokkal)
   tileTypes: TileType[];
+  /** Ha igaz: a mennyezetet rajzolja (magasságban, lefelé néző, kívülről nem takar). */
+  ceiling?: boolean;
 }
 
 // alaprajzon ezen a távolságon (cm) belül a padlóra duplázva ÚJ csúcspont kerül az élre
 const EDGE_INSERT_CM = 25;
 
-/** Tetszőleges alakú padló háromszögelve, a padló-textúrával. */
-export function FloorMesh({ room, surface, tileTypes }: Props) {
+/** Tetszőleges alakú padló/mennyezet háromszögelve, a felület textúrájával. */
+export function FloorMesh({ room, surface, tileTypes, ceiling }: Props) {
   const { map, roughnessMap } = useSurfaceTexture(surface, tileTypes);
   const selectSurface = useStore((s) => s.selectSurface);
   const openSurfaceEditor = useStore((s) => s.openSurfaceEditor);
@@ -26,12 +28,13 @@ export function FloorMesh({ room, surface, tileTypes }: Props) {
   const geometry = useMemo(() => {
     const poly = room.floorPolygon;
     const bb = boundingBox(poly);
+    const y = ceiling ? room.heightCm * CM_TO_WORLD : 0;
     const contour = poly.map((p) => new THREE.Vector2(p.x, p.y));
     const tris = THREE.ShapeUtils.triangulateShape(contour, []);
     const positions: number[] = [];
     const uvs: number[] = [];
     for (const p of poly) {
-      positions.push(p.x * CM_TO_WORLD, 0, p.y * CM_TO_WORLD);
+      positions.push(p.x * CM_TO_WORLD, y, p.y * CM_TO_WORLD);
       uvs.push((p.x - bb.minX) / bb.w, (p.y - bb.minY) / bb.h);
     }
     const index: number[] = [];
@@ -42,7 +45,7 @@ export function FloorMesh({ room, surface, tileTypes }: Props) {
     g.setIndex(index);
     g.computeVertexNormals();
     return g;
-  }, [room]);
+  }, [room, ceiling]);
 
   return (
     <mesh
@@ -53,8 +56,8 @@ export function FloorMesh({ room, surface, tileTypes }: Props) {
       }}
       onDoubleClick={(e: ThreeEvent<MouseEvent>) => {
         e.stopPropagation();
-        // alaprajzon, ha él közelében duplázunk → új csúcspont; egyébként csempe-szerkesztő
-        if (viewMode === 'plan') {
+        // padlón, alaprajzon, él közelében duplázva → új csúcspont; egyébként csempe-szerkesztő
+        if (!ceiling && viewMode === 'plan') {
           const p = { x: e.point.x / CM_TO_WORLD, y: e.point.z / CM_TO_WORLD };
           const ne = nearestEdge(room.floorPolygon, p);
           if (ne.distance <= EDGE_INSERT_CM) {
@@ -65,12 +68,18 @@ export function FloorMesh({ room, surface, tileTypes }: Props) {
         openSurfaceEditor(surface.id);
       }}
     >
+      {/* a háromszögelés normálja lefelé mutat; a mennyezet FrontSide-ja belülről látszik, kívülről nem takar */}
       <meshStandardMaterial
         map={map}
         roughnessMap={roughnessMap}
-        side={THREE.DoubleSide}
+        side={ceiling ? THREE.FrontSide : THREE.DoubleSide}
         roughness={1}
         metalness={0}
+        // a mennyezet lefelé néz → a directional fény nem éri (a falak igen); egy kis "öntéssel" (fake bounce,
+        // a saját textúrájából) pótoljuk a hiányzó megvilágítást, hogy azonos alapszínnél a falhoz hasonlítson
+        emissive={ceiling ? '#ffffff' : '#000000'}
+        emissiveMap={ceiling ? map : null}
+        emissiveIntensity={ceiling ? 0.15 : 0}
       />
     </mesh>
   );

@@ -67,18 +67,23 @@ three/
   SurfacePlane.tsx   # fal / doboz-oldal mint textúrázott plane (Front/Back/DoubleSide)
   FloorMesh.tsx      # padló-poligon háromszögelve + textúra; plan: él-közeli dupla katt → új csúcspont
   BoxGroup.tsx       # doboz 6 oldala + plan-nézeti húzás (+ kamera-lock + beginDrag/endDrag)
-  SceneContents.tsx  # a megosztott 3D tartalom (padlók, falak, dobozok)
+  ObjectGroup.tsx    # elhelyezett GLB objektum (useGLTF) + plan-húzás (mint a doboz)
+  modelUtils.ts      # loadModelBBox: GLB blob → natív befoglaló méret (GLTFLoader, three-stdlib)
+  SceneContents.tsx  # a megosztott 3D tartalom (padlók, falak, dobozok, objektumok)
   RoomEditingLayer.tsx # alaprajzi szoba-RAJZOLÁS + csúcspont-szerkesztés (lásd 9.3)
 views/
   PlanView.tsx       # alaprajz: ortografikus felülnézet, szoba-rajzolás
   View3D.tsx         # 3D: perspektív + OrbitControls + fények
   SurfaceEditor.tsx  # MODAL oldal-szerkesztő (alterület, minta, forgatás, cellák)
 panels/
-  RoomsPanel.tsx     # téglalap-szoba gyorslétrehozás + szoba-lista
+  RoomsPanel.tsx     # téglalap-szoba gyorslétrehozás + szoba-lista (sorra katt/dupla-katt = RoomEditor)
+  RoomEditor.tsx     # szoba popup: név, X-Y pozíció (eltolás), magasság, csoportos fal-alapszín
   TileLibraryPanel.tsx # csempetípusok + képfeltöltés + fuga; a kártya fejlécére kattintva szerkesztő popup
   TileInspector.tsx  # kijelölt csempe szerkesztő popupja (név, méret, fuga) – updateTileType
   SurfacesPanel.tsx  # „Oldalak" csoport: minden felület + láthatóság-checkbox + sorra katt = szerkesztő
+  ObjectsPanel.tsx   # GLB feltöltés + modellből példány elhelyezése + elhelyezett objektumok listája
   BoxInspector.tsx   # kijelölt doboz méret/pozíció popup
+  ObjectInspector.tsx # kijelölt 3D objektum méret/pozíció popup (mint a dobozé)
 ui/
   CollapsibleGroup.tsx # összecsukható oldalpanel-csoport (akkordeon)
   ErrorBoundary.tsx  # egy nézet hibája (pl. nincs WebGL) ne döntse le az egész appot
@@ -95,11 +100,16 @@ App.tsx, main.tsx, styles.css, vite-env.d.ts
 - **`ImageRef`**: `{ id, name, url? }`. A blob az IndexedDB-ben él; az `url` futásidejű object URL
   (nem perzisztált; betöltéskor `hydrateImageUrls` állítja elő).
 - **`Room`**: `{ id, name, floorPolygon: Vec2[] (cm, XZ), heightCm }`.
+- **`ModelAsset`** (feltöltött GLB): `{ id, name, naturalSize:{w,h,d} (cm), url? }`. A blob az IndexedDB
+  generikus blob-tárában (`saveImageBlob`/`loadImageBlob`); `naturalSize` = a natív befoglaló × 100
+  (1 modell-egység ≈ 1 m → cm). Az `url` futásidejű object URL (hidratált, nem perzisztált).
+- **`SceneObject`** (elhelyezett objektum): `{ id, name, modelId, pos, size:{w,h,d}, rotationY, roomId? }`.
+  Mint a `Box`, de GLB-t renderel; `size` = cél befoglaló (cm), a render skálázza (`size/naturalSize`).
 - **`Box`**: `{ id, name, pos:{x,y,z}, size:{w,h,d}, rotationY, roomId? }`. `pos.x/z` = vízszintes hely,
   `pos.y` = a doboz **aljának** magassága; a doboz közepe `(pos.x, pos.y+h/2, pos.z)`. A `roomId` a doboz
   szobája (a pozíciója alapján `roomForPoint`-tal; `addBox`/`updateBox`/migráció állítja); a doboz a szoba
   láthatóságát követi (`SceneContents` kihagyja, ha a szobája rejtett).
-- **`Surface`** (származtatott geometria, lásd 6.1): `{ id, kind:'floor'|'wall'|'box-face', label,
+- **`Surface`** (származtatott geometria, lásd 6.1): `{ id, kind:'floor'|'ceiling'|'wall'|'box-face', label,
   widthCm, heightCm, transform: SurfaceTransform, subRegions: SubRegion[], baseColor }`.
 - **`SurfaceTransform`**: `{ origin, uAxis, vAxis, normal }` (origin világ-méterben, a tengelyek egységvektorok).
 - **`SubRegion`**: `{ id, polygon: Vec2[] (cm a felület (u,v) terében; x=u, y=v), pattern: PatternConfig,
@@ -118,6 +128,9 @@ App.tsx, main.tsx, styles.css, vite-env.d.ts
 - **`Project`**: `{ id, name, tileTypes[], rooms[], boxes[], surfaceData, surfaceHidden, roomHidden }`.
   A `roomHidden: Record<roomId, boolean>` egész szobákat rejt (padló + falai); a `SceneContents` és a
   `RoomEditingLayer` kihagyja őket. UI: checkbox a `RoomsPanel` sorában (`toggleRoomHidden`).
+  A `surfaceBaseColor: Record<surfaceId, szín>` felülírja egy felület származtatott alapszínét (a
+  csempe nélküli rész színe); a `surfaces()` szelektor alkalmazza. Egyedi: `setSurfaceBaseColor` (SurfaceEditor
+  fejléc-színválasztó); csoportos: `setRoomSurfacesBaseColor` a szoba MINDEN oldalára (`RoomEditor`).
   **Fontos:** a felületek geometriája NINCS tárolva — a szobákból/dobozokból **származtatott**
   (lásd 6.1). Csak a felülethez tartozó `subRegions` perzisztálódik `surfaceData[surfaceId]` alatt.
 
@@ -125,6 +138,7 @@ App.tsx, main.tsx, styles.css, vite-env.d.ts
 
 ### 6.1 Felület-származtatás (`model/geometry.ts`)
 - `floorSurface(room)`: padló-felület; `(u,v)` a poligon befoglaló téglalapja; `uAxis=+X, vAxis=+Z, normal=+Y`.
+- `ceilingSurface(room)`: mennyezet — mint a padló, de `y=heightCm`-en, `normal=-Y` (lefelé). Id `:ceiling`.
 - `wallSurfaces(room)`: minden poligon-élhez egy fal; `u` = él menti hossz, `v` = magasság;
   a `normal` **befelé** mutat (a centroid felé; szükség esetén megfordítva).
 - `boxFaceSurfaces(box)`: a doboz 6 oldala, a `rotationY` figyelembevételével (`rotateY`).
@@ -213,9 +227,19 @@ Egy `planeGeometry` a `surfacePose` szerint elhelyezve, `useSurfaceTexture` map-
 
 ### 8.4 `FloorMesh.tsx`
 A padló-poligont `THREE.ShapeUtils.triangulateShape`-pel háromszögeli, a vertexeket
-`(x*cm, 0, z*cm)`-re teszi, a UV-t a befoglaló téglalapra normálja (`(x-minX)/w, (z-minZ)/h`).
-`DoubleSide`. Klikk = felület kijelölés. **Dupla katt:** plan nézetben, ha él-közeli (`nearestEdge`
+`(x*cm, y, z*cm)`-re teszi, a UV-t a befoglaló téglalapra normálja (`(x-minX)/w, (z-minZ)/h`).
+Padlón `DoubleSide`. Klikk = felület kijelölés. **Dupla katt:** plan nézetben, ha él-közeli (`nearestEdge`
 ≤ `EDGE_INSERT_CM`) → `insertRoomVertex` (új csúcspont), egyébként csempe-szerkesztő nyit.
+**`ceiling` prop:** ugyanez a komponens rajzolja a mennyezetet is — ekkor `y = heightCm*cm`, `FrontSide`
+(a háromszögelés normálja lefelé mutat, így belülről/alulról látszik, felülről kulloz → nem takarja a
+felülnézeti 3D nézetet), és nincs él-beszúrás dupla kattra (mindig a csempe-szerkesztőt nyitja).
+**Világítás-gotcha:** a lefelé néző mennyezetet felülről nem éri fény (a `directionalLight`-ok elfordulnak
+tőle, a `hemisphereLight` a *talaj*-színt adja rá), így a fehér is szürkére sötétedne. Nincs global
+illumination (nincs padló-visszaverődés). Cél: azonos alapszínnél a mennyezet és a falak ~egyformák legyenek.
+Megoldás két részből: (1) a világítás irány-független részét erősítjük — `ambient 0.55`, a `hemisphereLight`
+talaj-színe világosabb `#6d6d78` (a lefelé néző felület ezt a teljes színt kapja), lásd `View3D`; (2) a
+mennyezet a saját textúráját kicsit **önti** (`emissive=#fff, emissiveMap=map, emissiveIntensity=0.15`),
+pótolva a hiányzó directional-t. Csak a mennyezetnél; padlón/falon `emissive=0`.
 
 ### 8.5 `BoxGroup.tsx`
 A doboz 6 `SurfacePlane` oldala egy `<group>`-ban. **Plan nézetben húzható:** `pointerdown`→`pointerup`
@@ -223,9 +247,18 @@ a földsíkra (`y=0`) raycastol, és frissíti `box.pos.x/z`-t. **Kamera-lock (g
 `controls.enabled=false` (a `useThree(s=>s.controls)`-ból), `pointerup`-nál vissza `true` — különben a
 `MapControls` is pásztázna a húzással. `beginDrag()/endDrag()` → egy undo-lépés / húzás. Kijelölt dobozhoz `BoxOutline` drótváz.
 
+### 8.5b `ObjectGroup.tsx` (elhelyezett GLB objektum)
+`useGLTF(model.url)` betölti a GLB-t (Suspense kell köré — a `SceneContents` `<Suspense fallback={null}>`-be
+csomagolja). A scene-t **példányonként klónozzuk** (`scene.clone(true)`), mert egy node csak egy helyen lehet.
+A klón befoglalójából (`Box3`) számolt `center/min` szerint a modellt az origóra (alja-középre) toljuk, majd
+`size/naturalSize` arányban skálázzuk. Plan-húzás/kijelölés/kamera-lock: ugyanaz, mint a `BoxGroup`-nál
+(`updateObject`/`selectObject`). Kijelöléskor drótváz-doboz a `size` méretben.
+
 ### 8.6 `SceneContents.tsx`
-A megosztott tartalom (mindkét nézet használja, `mode:'plan'|'3d'` prop). Szobánként `FloorMesh` + falak
-(`SurfacePlane`, csak 3D-ben), dobozonként `BoxGroup`. Egy láthatatlan földsík `onClick`-je törli a kijelölést.
+A megosztott tartalom (mindkét nézet használja, `mode:'plan'|'3d'` prop). Szobánként `FloorMesh` (padló) +
+**mennyezet** (`FloorMesh ceiling`, csak 3D-ben) + falak (`SurfacePlane`, csak 3D-ben), dobozonként `BoxGroup`,
+objektumonként `ObjectGroup` (Suspense-ben). A mennyezet plan nézetben nem jelenik meg (felülnézetből eltakarná
+a padlót). A rejtett szobájú dobozok/objektumok kimaradnak. Egy láthatatlan földsík `onClick`-je törli a kijelölést.
 
 ## 9. Nézetek
 
@@ -236,7 +269,10 @@ kamera up-vektora degenerált és 45°-kal elfordulna a kép!), `zoom=120` (1 wo
 pontokat (cm-re kerekítve); a vázlat-poligon `drei <Line>` + gömbök.
 
 ### 9.2 `View3D.tsx`
-Perspektív kamera + `OrbitControls` + `ambient/hemisphere/directional` fények.
+Perspektív kamera + `OrbitControls` + `ambient/hemisphere/directional` fények. **Procedurális környezet**
+(`<Environment>` + `<Lightformer>`-ek, offline, hálózat nélkül): ez adja a `scene.environment`-et, amit a
+`MeshStandardMaterial`-ek automatikusan használnak — **enélkül a fényes (alacsony érdességű) csempék nem
+látszanának fényesnek**, mert nincs mit tükrözniük (csak egy aprócska direkt-fény csúcsfény lenne).
 
 ### 9.3 `RoomEditingLayer.tsx` (alaprajzi rajzolás + csúcspont-szerkesztés)
 A PlanView Canvas-án belül fut. Világ↔képernyő: `screenToCm()` a kamerából raycastol a földsíkra
@@ -342,7 +378,13 @@ UI: „⭳ Export" / „⭱ Import" gomb a toolbarban (rejtett file-input). A `m
 4. **Doboz minden oldala látszódjon:** a dobozoldalak `DoubleSide`-ot kapnak (a falak nem).
 5. **Kamera pásztázott doboz-húzás közben:** húzás idejére `controls.enabled=false` (BoxGroup).
 6. **Textúra-orientáció:** `CanvasTexture.flipY=false` + a canvas „v lefelé" rajzolása konzisztens a
-   PlaneGeometry/Floor UV-vel.
+   PlaneGeometry/Floor UV-vel (a **régiók pozíciója** helyes a 3D-ben és a szerkesztőben is). **DE:** a fal (és
+   függőleges doboz-oldal) `vAxis`-a FELFELÉ mutat (v=0=padló), a vászon viszont v-lefelé rajzol, így a
+   `drawImage` a KÉP tetejét a padló felé tenné → a fal-képek fejjel lefelé lennének (szimmetrikus csempénél
+   nem látszik, egy ajtó-képnél igen). Ezért a `renderSurfaceCanvas` a **kép tartalmát** függőlegesen tükrözi
+   ott, ahol `surface.transform.vAxis.y > 0.5` (`flipImg`), a régiók pozícióját NEM. A szerkesztő `flipV`-je
+   ugyanezt a vásznat mutatja (a fal alját lentre), így 3D és szerkesztő végig egyezik. Fontos: NEM `flipY`-nal
+   javítjuk, mert az az egész felületet (a régiók helyét is) tükrözné → a csempesávok elcsúsznának a szerkesztőhöz képest.
 7. **R3F szintetikus események tesztben:** a kézzel kreált pointer/MouseEvent-nek kell `view: window`,
    különben az R3F raycast nem fut le (lásd 13).
 8. **`import.meta.env` build hiba:** `src/vite-env.d.ts`-ben `/// <reference types="vite/client" />`.
@@ -363,6 +405,13 @@ UI: „⭳ Export" / „⭱ Import" gomb a toolbarban (rejtett file-input). A `m
 14. **Debounce-olt autosave pillanatkép:** a `scheduleSave` korábban a mutáció `next` pillanatképét mentette
     400 ms késéssel. Ha közben más felülírta a projektet (pl. `importProject`), a késleltetett mentés a RÉGI
     állapotot írta vissza. Megoldás: a `scheduleSave` fire-kor `get().project`-et ment (mindig a legfrissebbet).
+15. **Fényesség csak környezettel látszik:** a `roughnessMap` önmagában (env nélkül) alig ad fényes hatást
+    (csak parányi direkt-fény csúcsfény). A `View3D` `<Environment>`-je (Lightformer-ek) adja a tükröződést,
+    így a fényes csempék láthatóan csillognak. (A `MeshStandardMaterial` auto. használja a `scene.environment`-et.)
+16. **drei `<Html>` címkék a popupok fölött:** a plan-nézeti falhossz-címkék (`<Html>`) nagyon magas
+    z-indexet kapnak (~16M). Ha a `.viewport` nem hoz létre stacking contextet, ez a gyökér szintjén a fixed
+    modálisok (z-index 50) fölé kerül. Megoldás: `.viewport { isolation: isolate }` — a címkék a viewport
+    stacking contextjébe záródnak, így a popupok föléjük kerülnek.
 
 ## 13. Tesztelés és böngészős verifikáció
 
@@ -386,12 +435,59 @@ UI: „⭳ Export" / „⭱ Import" gomb a toolbarban (rejtett file-input). A `m
   utána cella-szintű hozzárendelés. Stabil cella-identitás forgatás alatt = jövőbeli feladat
   (a generátoroknak negatív index-tartományt és rögzített fázist kellene támogatniuk).
 
+## 14.5 Hosting / Deploy (GitHub Pages)
+Az app **tisztán kliensoldali** statikus SPA (nincs backend; IndexedDB tárolás), így statikus hoszting elég.
+- **Cím:** https://gaaaron.github.io/TileSim/ (projekt-oldal).
+- **`base`:** `vite.config.ts`-ben production alatt `/TileSim/` (dev alatt `/`, hogy a `npm run dev` a gyökéren
+  fusson). Projekt-oldalnál KÖTELEZŐ, különben az asset-útvonalak (`/assets/...`) 404-eznek.
+- **Workflow:** `.github/workflows/deploy.yml` — `master`-re push (vagy kézi `workflow_dispatch`) → `npm ci` +
+  `npm run build` → a `dist` feltöltése a Pages-re (`upload-pages-artifact` + `deploy-pages`).
+- **Egyszeri kapcsoló:** repo → Settings → Pages → Source: **GitHub Actions**. A repónak **publikusnak** kell
+  lennie (ingyenes csomagban). Nincs kliensoldali útvonal-routing → nincs SPA 404-átirányítás.
+
 ## 15. Dokumentációs szabály
 **Minden fejlesztésnél frissítsd ezt a fájlt.** Ha új funkciót/komponenst adsz: bővítsd a fájltérképet (4),
 az érintett szakaszt és szükség esetén a gotchas-t (12). Új buktató → mindig a MIÉRT-tel. A végén vezesd a
 Changelog-ot. A dokumentáció magyarul készül; a kód-azonosítók angolul maradnak.
 
 ## 16. Changelog
+- **2026-08-04** — **GitHub Pages deploy.** `vite.config.ts` `base=/TileSim/` (prod), `.github/workflows/
+  deploy.yml` (build → Pages). Cím: https://gaaaron.github.io/TileSim/. Lásd 14.5.
+- **2026-08-04** — **Szoba magasság a szoba-szerkesztőben.** A `RoomEditor` popup kapott egy „Magasság (cm)"
+  mezőt (`updateRoom({heightCm})`, Enter/blur alkalmaz). A falak és a mennyezet a származtatott geometriában
+  automatikusan követik. Az alterületek a felület (u,v) terében a padlótól méretezettek (v=0 = padló), ezért
+  magasságváltozáskor a szoba aljához képest ugyanott maradnak – nincs velük külön teendő.
+- **2026-08-04** — **Fix: fal-KÉP (pl. ajtó) fejjel lefelé.** A vászon v-lefelé rajzol, a fal `vAxis`-a
+  felfelé mutat → a `drawImage` a kép tetejét a padló felé tette. Megoldás: a `renderSurfaceCanvas` a
+  **kép tartalmát** függőlegesen tükrözi függőleges felületeknél (`vAxis.y>0.5`), a régiók pozícióját nem.
+  (Első próbálkozás `flipY=true` volt, de az az egész felületet tükrözte → a csempesávok elcsúsztak a
+  szerkesztőhöz képest; visszavonva.) Lásd a 6. gotchát.
+- **2026-08-04** — **Fix: mennyezet irreálisan szürke volt 3D-ben.** A lefelé néző mennyezetet felülről nem
+  éri fény, ezért a fehér is szürkére sötétedett; cél, hogy azonos alapszínnél a mennyezet és a falak
+  hasonlóak legyenek. Megoldás: (1) irány-független világítás erősítése — `ambient 0.4→0.55`, hemisphere
+  talaj-szín `#444455→#6d6d78` (a mennyezet ezt a teljes színt kapja); (2) kis emissive-kompenzáció a
+  mennyezeten (`emissive=#fff, emissiveMap=map, emissiveIntensity=0.15`) a hiányzó directional pótlására.
+- **2026-08-04** — **Mennyezet (mennyezet-oldal):** a szobáknak mostantól mennyezet-felületük is van.
+  `SurfaceKind += 'ceiling'`; `ceilingSurface(room)` a `geometry.ts`-ben (mint a padló, de `y=heightCm`,
+  `normal=-Y`, id `:ceiling`, saját alapszín `#eceae4`); az `allSurfaces` sorrendje: padló, mennyezet, falak.
+  A `FloorMesh` kapott egy `ceiling` propot (magasságban rajzol, `FrontSide` — belülről látszik, felülről nem
+  takarja a 3D nézetet, nincs él-beszúrás). A `SceneContents` csak 3D-ben rendereli a mennyezetet. A mennyezet
+  megjelenik az Oldalak panelen (külön szerkeszthető/rejthető/színezhető), és a `setRoomSurfacesBaseColor`
+  csoportos szín is kiterjed rá.
+- **2026-06-26** — **Fix:** a plan-nézeti falhossz-címkék (drei `<Html>`) a popupok/modálisok FÖLÉ kerültek a
+  magas z-indexük miatt. Javítás: `.viewport { isolation: isolate }` — a címkék a viewport stacking
+  contextjébe záródnak, így a popup takarja őket (16. gotcha).
+- **2026-06-26** — **Oldal-alapszín + szoba-szerkesztő:** `project.surfaceBaseColor` felülírja egy felület
+  alapszínét (`surfaces()` alkalmazza, a `useSurfaceTexture` sig-je is figyeli). Egyedi színválasztó a
+  `SurfaceEditor` fejlécében (`setSurfaceBaseColor`). A `RoomsPanel` sorára (dupla)kattintva megnyílik a
+  `RoomEditor` popup: név, X-Y pozíció (a poligon eltolása), és **csoportos** fal-alapszín az összes oldalra
+  (`setRoomSurfacesBaseColor`).
+- **2026-06-26** — **3D objektumok (GLB/glTF) elhelyezése:** `ModelAsset` + `SceneObject` típusok;
+  `addModelAsset` (GLB feltöltés, natív befoglaló kiszámítása `loadModelBBox`-szal), `addObject/updateObject/
+  removeObject`, `selectObject`. `ObjectGroup` (useGLTF, klónozás, skálázás), `ObjectsPanel` (feltöltés +
+  „Elhelyez"), `ObjectInspector` (méret/pozíció/forgatás, mint a dobozé). Plan-húzás + szobához rendelés +
+  szoba-láthatóság követése (mint a dobozok). Export/import a modell-blobokat is tartalmazza (three-stdlib függő).
+- **2026-06-26** — Az alterület átméretezésének **minimum mérete 5 → 1 cm** (`resizeActiveSub` + a méret-mezők `min`).
 - **2026-06-25** — Kezdeti MVP: csempe-könyvtár + IndexedDB, szoba (téglalap/poligon) + 3D származtatás,
   3D dobozok (húzás + inspector), felület-szerkesztő (alterület/minta/cella-hozzárendelés), grid/offset/
   herringbone generátorok, plan+3D nézet. Javítások: plan kamera up-vektor, fal egyoldalúság, doboz póz
@@ -424,7 +520,8 @@ Changelog-ot. A dokumentáció magyarul készül; a kód-azonosítók angolul ma
 - **2026-06-26** — **Csempe sima szín + fényesség:** `TileType.color` (kép híján ezzel renderel) és
   `glossiness` (0..1). A renderer érdesség-térképet is gyárt (`roughnessCanvas`), a `useSurfaceTexture`
   `{map, roughnessMap}`-et ad, a 3D anyagok `roughnessMap`-pel renderelnek. `TileInspector`: szín-választó +
-  fényesség-csúszka; a kártyán szín-minta kép híján.
+  fényesség-csúszka; a kártyán szín-minta kép híján. **+ Fix:** a `View3D` procedurális `<Environment>`-je
+  (Lightformer-ek) adja a tükröződést, hogy a fényesség 3D-ben látható legyen (enélkül „nem fényes").
 - **2026-06-26** — **Alterület numerikus átméretezése + pivot:** „Méret (cm)" szakasz 3×3 pivot-ráccsal és
   W/H mezőkkel; a `resizeActiveSub` a poligont a választott pivot (sarok/oldalfelező/középpont) körül skálázza.
   + **Numerikus pozíció** (X/Y mezők, `moveActiveSubTo`): az alterületet a megadott bal-felső sarokra tolja.

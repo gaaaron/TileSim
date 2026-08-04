@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store/projectStore';
+import { RoomEditor } from './RoomEditor';
 
 /** Szobák: pontos méretű téglalap-szoba gyors létrehozása + lista/törlés. */
 export function RoomsPanel() {
@@ -12,6 +13,7 @@ export function RoomsPanel() {
   const [w, setW] = useState(400);
   const [l, setL] = useState(300);
   const [h, setH] = useState(270);
+  const [editRoomId, setEditRoomId] = useState<string | null>(null);
 
   const addRect = () => {
     // origó-illesztett téglalap (cm), az XZ síkon
@@ -38,14 +40,16 @@ export function RoomsPanel() {
 
       <div className="room-list">
         {rooms.map((r) => (
-          <div key={r.id} className="room-item">
+          <div key={r.id} className="room-item" onDoubleClick={() => setEditRoomId(r.id)} title="Dupla katt: szerkesztés">
             <input
               type="checkbox"
               checked={!roomHidden?.[r.id]}
               title="Láthatóság"
               onChange={() => toggleRoomHidden(r.id)}
             />
-            <span className="link">{r.name}</span>
+            <button className="link" onClick={() => setEditRoomId(r.id)}>
+              {r.name}
+            </button>
             <span className="muted small">{r.heightCm} cm</span>
             <button className="icon danger" onClick={() => removeRoom(r.id)}>
               ✕
@@ -54,6 +58,8 @@ export function RoomsPanel() {
         ))}
         {rooms.length === 0 && <p className="muted small">Még nincs szoba.</p>}
       </div>
+
+      {editRoomId && <RoomEditor roomId={editRoomId} onClose={() => setEditRoomId(null)} />}
     </div>
   );
 }

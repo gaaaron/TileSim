@@ -2,15 +2,18 @@ import { create } from 'zustand';
 import {
   Box,
   ImageRef,
+  ModelAsset,
   PatternConfig,
   Project,
   Room,
+  SceneObject,
   SubRegion,
   Surface,
   TileType,
   uid,
 } from '../model/types';
 import { allSurfaces, roomForPoint } from '../model/geometry';
+import { loadModelBBox } from '../three/modelUtils';
 import {
   exportProjectBlob,
   hydrateImageUrls,
@@ -33,9 +36,12 @@ function emptyProject(): Project {
     tileTypes: [],
     rooms: [],
     boxes: [],
+    models: [],
+    objects: [],
     surfaceData: {},
     surfaceHidden: {},
     roomHidden: {},
+    surfaceBaseColor: {},
   };
 }
 
@@ -47,9 +53,15 @@ function migrateProject(project: Project): Project {
   project.tileTypes ??= [];
   project.surfaceHidden ??= {};
   project.roomHidden ??= {};
+  project.surfaceBaseColor ??= {};
+  project.models ??= [];
+  project.objects ??= [];
   for (const t of project.tileTypes) {
     t.color ??= '#c9c4b8';
     t.glossiness ??= 0;
+  }
+  for (const o of project.objects) {
+    if (!o.roomId) o.roomId = (roomForPoint(project.rooms, o.pos.x, o.pos.z) ?? project.rooms[0])?.id;
   }
   for (const list of Object.values(project.surfaceData)) {
     for (const sub of list as Array<SubRegion & { rect?: { u: number; v: number; w: number; h: number } }>) {
@@ -82,6 +94,7 @@ interface State {
   draftRoom: { x: number; y: number }[] | null;
   draftHeightCm: number;
   selectedBoxId: string | null;
+  selectedObjectId: string | null;
   selectedSurfaceId: string | null;
   editingSurfaceId: string | null;
   selectedSubRegionId: string | null;
@@ -135,6 +148,13 @@ interface State {
   updateBox: (id: string, patch: Partial<Box>) => void;
   removeBox: (id: string) => void;
 
+  // 3D objektumok (GLB)
+  selectObject: (id: string | null) => void;
+  addModelAsset: (file: File) => Promise<string>;
+  addObject: (modelId: string) => void;
+  updateObject: (id: string, patch: Partial<SceneObject>) => void;
+  removeObject: (id: string) => void;
+
   // surfaces
   getSubRegions: (surfaceId: string) => SubRegion[];
   addSubRegion: (surfaceId: string, polygon: SubRegion['polygon']) => string;
@@ -151,6 +171,8 @@ interface State {
   toggleSurfaceHidden: (surfaceId: string) => void;
   setRoomHidden: (roomId: string, hidden: boolean) => void;
   toggleRoomHidden: (roomId: string) => void;
+  setSurfaceBaseColor: (surfaceId: string, color: string) => void;
+  setRoomSurfacesBaseColor: (roomId: string, color: string) => void;
 
   // húzás-koalescálás (egy undo-lépés / húzás): mozgatás, átméretezés
   beginDrag: () => void;
@@ -193,6 +215,7 @@ export const useStore = create<State>((set, get) => {
     draftRoom: null,
     draftHeightCm: 270,
     selectedBoxId: null,
+    selectedObjectId: null,
     selectedSurfaceId: null,
     editingSurfaceId: null,
     selectedSubRegionId: null,
@@ -243,7 +266,8 @@ export const useStore = create<State>((set, get) => {
 
     setViewMode: (m) => set({ viewMode: m }),
     setPlanTool: (t) => set({ planTool: t }),
-    selectBox: (id) => set({ selectedBoxId: id, selectedSurfaceId: null }),
+    selectBox: (id) => set({ selectedBoxId: id, selectedObjectId: null, selectedSurfaceId: null }),
+    selectObject: (id) => set({ selectedObjectId: id, selectedBoxId: null, selectedSurfaceId: null }),
     selectSurface: (id) => set({ selectedSurfaceId: id }),
     openSurfaceEditor: (id) =>
       set({ editingSurfaceId: id, selectedSubRegionId: null, selectedCells: [] }),
@@ -257,6 +281,7 @@ export const useStore = create<State>((set, get) => {
         ...s,
         subRegions: p.surfaceData[s.id] ?? [],
         hidden: !!p.surfaceHidden?.[s.id],
+        baseColor: p.surfaceBaseColor?.[s.id] ?? s.baseColor,
       }));
     },
 
@@ -395,6 +420,65 @@ export const useStore = create<State>((set, get) => {
         return p;
       }),
 
+    addModelAsset: async (file) => {
+      const id = uid('model_');
+      await saveImageBlob(id, file); // a GLB blob a generikus blob-tárba
+      const bb = await loadModelBBox(file); // natív befoglaló (modell-egység ≈ m)
+      const naturalSize = {
+        w: Math.max(1, Math.round(bb.x * 100)),
+        h: Math.max(1, Math.round(bb.y * 100)),
+        d: Math.max(1, Math.round(bb.z * 100)),
+      };
+      const model: ModelAsset = {
+        id,
+        name: file.name.replace(/\.[^.]+$/, ''),
+        naturalSize,
+        url: URL.createObjectURL(file),
+      };
+      mutate((p) => {
+        p.models.push(model);
+        return p;
+      });
+      return id;
+    },
+    addObject: (modelId) =>
+      mutate((p) => {
+        const model = p.models.find((m) => m.id === modelId);
+        if (!model) return p;
+        let cx = 0;
+        let cz = 0;
+        if (p.rooms[0]) {
+          const poly = p.rooms[0].floorPolygon;
+          cx = poly.reduce((s, q) => s + q.x, 0) / poly.length;
+          cz = poly.reduce((s, q) => s + q.y, 0) / poly.length;
+        }
+        p.objects.push({
+          id: uid('obj_'),
+          name: `${model.name} ${p.objects.length + 1}`,
+          modelId,
+          pos: { x: cx, y: 0, z: cz },
+          size: { ...model.naturalSize },
+          rotationY: 0,
+          roomId: (roomForPoint(p.rooms, cx, cz) ?? p.rooms[0])?.id,
+        });
+        return p;
+      }),
+    updateObject: (id, patch) =>
+      mutate((p) => {
+        const o = p.objects.find((x) => x.id === id);
+        if (o) {
+          Object.assign(o, patch);
+          const r = roomForPoint(p.rooms, o.pos.x, o.pos.z);
+          if (r) o.roomId = r.id;
+        }
+        return p;
+      }),
+    removeObject: (id) =>
+      mutate((p) => {
+        p.objects = p.objects.filter((x) => x.id !== id);
+        return p;
+      }),
+
     getSubRegions: (surfaceId) => get().project.surfaceData[surfaceId] ?? [],
     addSubRegion: (surfaceId, polygon) => {
       const id = uid('sub_');
@@ -480,6 +564,25 @@ export const useStore = create<State>((set, get) => {
       }),
     toggleRoomHidden: (roomId) =>
       get().setRoomHidden(roomId, !get().project.roomHidden?.[roomId]),
+    setSurfaceBaseColor: (surfaceId, color) =>
+      mutate((p) => {
+        p.surfaceBaseColor ??= {};
+        p.surfaceBaseColor[surfaceId] = color;
+        return p;
+      }),
+    setRoomSurfacesBaseColor: (roomId, color) =>
+      mutate((p) => {
+        p.surfaceBaseColor ??= {};
+        const room = p.rooms.find((r) => r.id === roomId);
+        if (room) {
+          p.surfaceBaseColor[`${roomId}:floor`] = color;
+          p.surfaceBaseColor[`${roomId}:ceiling`] = color;
+          for (let i = 0; i < room.floorPolygon.length; i++) {
+            p.surfaceBaseColor[`${roomId}:wall:${i}`] = color;
+          }
+        }
+        return p;
+      }),
 
     beginDrag: () => {
       // egyetlen pillanatkép a húzás elejéről, majd a köztes mutációk nem rakódnak history-ba

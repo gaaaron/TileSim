@@ -24,7 +24,7 @@ function db(): Promise<IDBPDatabase> {
   return dbPromise;
 }
 
-/** A projekt mentésekor az object URL-eket nem perzisztáljuk (csak a kép-id-ket). */
+/** A projekt mentésekor az object URL-eket nem perzisztáljuk (csak az id-ket). */
 function stripUrls(project: Project): Project {
   return {
     ...project,
@@ -32,6 +32,7 @@ function stripUrls(project: Project): Project {
       ...t,
       images: t.images.map((img) => ({ id: img.id, name: img.name })),
     })),
+    models: (project.models ?? []).map((m) => ({ ...m, url: undefined })),
   };
 }
 
@@ -65,7 +66,7 @@ export async function loadImageBlob(id: string): Promise<Blob | undefined> {
   return d.get(STORE_IMAGES, id);
 }
 
-/** Object URL-eket gyárt egy projekt összes képéhez (betöltés után hívandó). */
+/** Object URL-eket gyárt egy projekt összes képéhez ÉS modelljéhez (betöltés után hívandó). */
 export async function hydrateImageUrls(project: Project): Promise<Project> {
   for (const tile of project.tileTypes) {
     for (const img of tile.images) {
@@ -73,6 +74,12 @@ export async function hydrateImageUrls(project: Project): Promise<Project> {
         const blob = await loadImageBlob(img.id);
         if (blob) img.url = URL.createObjectURL(blob);
       }
+    }
+  }
+  for (const model of project.models ?? []) {
+    if (!model.url) {
+      const blob = await loadImageBlob(model.id);
+      if (blob) model.url = URL.createObjectURL(blob);
     }
   }
   return project;
@@ -106,15 +113,15 @@ function base64ToBlob(data: string, type: string): Blob {
 /** A teljes projekt + összes textúra egyetlen letölthető JSON-blobban. */
 export async function exportProjectBlob(project: Project): Promise<Blob> {
   const images: ProjectExport['images'] = {};
+  const encode = async (id: string, name: string, fallbackType: string) => {
+    if (images[id]) return;
+    const blob = await loadImageBlob(id);
+    if (blob) images[id] = { name, type: blob.type || fallbackType, data: await blobToBase64(blob) };
+  };
   for (const tile of project.tileTypes) {
-    for (const img of tile.images) {
-      if (images[img.id]) continue;
-      const blob = await loadImageBlob(img.id);
-      if (blob) {
-        images[img.id] = { name: img.name, type: blob.type || 'image/png', data: await blobToBase64(blob) };
-      }
-    }
+    for (const img of tile.images) await encode(img.id, img.name, 'image/png');
   }
+  for (const model of project.models ?? []) await encode(model.id, model.name, 'model/gltf-binary');
   const payload: ProjectExport = { format: 'tilesim', version: 1, project: stripUrls(project), images };
   return new Blob([JSON.stringify(payload)], { type: 'application/json' });
 }

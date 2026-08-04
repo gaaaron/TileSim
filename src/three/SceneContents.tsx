@@ -1,9 +1,10 @@
-import { useMemo } from 'react';
+import { Suspense, useMemo } from 'react';
 import { Surface } from '../model/types';
 import { useStore } from '../store/projectStore';
 import { FloorMesh } from './FloorMesh';
 import { SurfacePlane } from './SurfacePlane';
 import { BoxGroup } from './BoxGroup';
+import { ObjectGroup } from './ObjectGroup';
 
 interface Props {
   mode: 'plan' | '3d';
@@ -37,11 +38,15 @@ export function SceneContents({ mode }: Props) {
       {project.rooms.map((room) => {
         if (project.roomHidden?.[room.id]) return null;
         const floor = byId.get(`${room.id}:floor`);
+        const ceiling = byId.get(`${room.id}:ceiling`);
         const walls = surfaces.filter((s) => s.id.startsWith(`${room.id}:wall:`) && !s.hidden);
         return (
           <group key={room.id}>
             {floor && !floor.hidden && (
               <FloorMesh room={room} surface={floor} tileTypes={project.tileTypes} />
+            )}
+            {mode === '3d' && ceiling && !ceiling.hidden && (
+              <FloorMesh room={room} surface={ceiling} tileTypes={project.tileTypes} ceiling />
             )}
             {mode === '3d' &&
               walls.map((w) => <SurfacePlane key={w.id} surface={w} tileTypes={project.tileTypes} />)}
@@ -54,6 +59,17 @@ export function SceneContents({ mode }: Props) {
         const faces = surfaces.filter((s) => s.id.startsWith(`${box.id}:face:`) && !s.hidden);
         return (
           <BoxGroup key={box.id} box={box} faces={faces} tileTypes={project.tileTypes} mode={mode} />
+        );
+      })}
+
+      {project.objects.map((obj) => {
+        if (obj.roomId && project.roomHidden?.[obj.roomId]) return null;
+        const model = project.models.find((m) => m.id === obj.modelId);
+        if (!model?.url) return null;
+        return (
+          <Suspense key={obj.id} fallback={null}>
+            <ObjectGroup object={obj} model={model} mode={mode} />
+          </Suspense>
         );
       })}
     </group>

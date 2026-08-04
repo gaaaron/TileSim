@@ -74,6 +74,28 @@ export function floorSurface(room: Room): Surface {
   };
 }
 
+/** A mennyezet felülete: mint a padló, de a magasságban, lefelé néző normállal (belülről látható). */
+export function ceilingSurface(room: Room): Surface {
+  const bb = boundingBox(room.floorPolygon);
+  const transform: SurfaceTransform = {
+    origin: scale(v3(bb.minX, room.heightCm, bb.minY), CM_TO_WORLD),
+    uAxis: v3(1, 0, 0),
+    vAxis: v3(0, 0, 1),
+    normal: v3(0, -1, 0),
+  };
+  return {
+    id: `${room.id}:ceiling`,
+    kind: 'ceiling',
+    label: `${room.name} – mennyezet`,
+    widthCm: bb.w,
+    heightCm: bb.h,
+    transform,
+    subRegions: [],
+    baseColor: '#eceae4',
+    outline: room.floorPolygon.map((p) => ({ x: p.x - bb.minX, y: p.y - bb.minY })),
+  };
+}
+
 /** A szoba falai (minden poligon-élhez egy fal). u = él menti hossz, v = magasság. */
 export function wallSurfaces(room: Room): Surface[] {
   const poly = room.floorPolygon;
@@ -180,6 +202,7 @@ export function allSurfaces(rooms: Room[], boxes: Box[]): Surface[] {
   const out: Surface[] = [];
   for (const r of rooms) {
     out.push(floorSurface(r));
+    out.push(ceilingSurface(r));
     out.push(...wallSurfaces(r));
   }
   for (const b of boxes) {

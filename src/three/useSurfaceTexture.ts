@@ -16,7 +16,14 @@ export function useSurfaceTexture(surface: Surface, tileTypes: TileType[]): Surf
 
   // a felület „aláírása": ha változik, újrarajzoljuk a canvast
   const sig = useMemo(
-    () => JSON.stringify(surface.subRegions) + '|' + surface.widthCm + 'x' + surface.heightCm,
+    () =>
+      JSON.stringify(surface.subRegions) +
+      '|' +
+      surface.widthCm +
+      'x' +
+      surface.heightCm +
+      '|' +
+      surface.baseColor,
     [surface],
   );
 

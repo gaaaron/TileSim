@@ -119,6 +119,11 @@ export function renderSurfaceCanvas(
   const ppc = pixelsPerCm(surface.widthCm, surface.heightCm, maxPx);
   const W = Math.max(1, Math.round(surface.widthCm * ppc));
   const H = Math.max(1, Math.round(surface.heightCm * ppc));
+  // Függőleges felület (fal / függőleges doboz-oldal): a felület v-tengelye FELFELÉ mutat, a vászon viszont
+  // v-lefelé rajzol → a `drawImage` a kép tetejét a padló felé tenné (fejjel lefelé, jól látszik pl. ajtónál).
+  // Ezért az ilyen felületeknél a KÉP tartalmát függőlegesen tükrözzük (a régiók pozícióját nem – azt a
+  // szerkesztő flipV-je és a 3D leképezés már helyesen kezeli). Vízszintes felület (padló/mennyezet/doboz teteje) nem érintett.
+  const flipImg = surface.transform.vAxis.y > 0.5;
   const canvas = document.createElement('canvas');
   canvas.width = W;
   canvas.height = H;
@@ -169,6 +174,7 @@ export function renderSurfaceCanvas(
       ctx.translate(cell.cx * ppc, cell.cy * ppc);
       if (cell.rotationDeg) ctx.rotate((cell.rotationDeg * Math.PI) / 180);
       if (img) {
+        if (flipImg) ctx.scale(1, -1); // fal: a kép álljon (a v-tengely felfelé mutat, a vászon lefelé rajzol)
         if (sub.pattern.tileRotated) {
           ctx.rotate(Math.PI / 2);
           ctx.drawImage(img, -dh / 2, -dw / 2, dh, dw);

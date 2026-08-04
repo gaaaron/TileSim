@@ -6,6 +6,7 @@ import { allGenerators, getGenerator } from '../patterns/registry';
 import { renderSurfaceCanvas, subRegionTiles, surfaceImageUrls } from '../render/SurfaceTexture';
 import { imageIndexFor } from '../render/tilePicker';
 import { useImages } from '../render/imageCache';
+import { ColorField } from '../ui/ColorField';
 
 const MAX_W = 720;
 const MAX_H = 520;
@@ -516,11 +517,7 @@ export function SurfaceEditor() {
           </span>
           <label className="vis-toggle" title="Az oldal alapszíne (csempe nélküli rész)">
             Alapszín
-            <input
-              type="color"
-              value={surface.baseColor}
-              onChange={(e) => setSurfaceBaseColor(surface.id, e.target.value)}
-            />
+            <ColorField value={surface.baseColor} onChange={(c) => setSurfaceBaseColor(surface.id, c)} />
           </label>
           <label className="vis-toggle" title="A fal megjelenítése a 3D nézetben">
             <input type="checkbox" checked={!surface.hidden} onChange={() => toggleSurfaceHidden(surface.id)} />

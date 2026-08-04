@@ -10,6 +10,7 @@ import { MaterialPanel } from './panels/MaterialPanel';
 import { ObjectsPanel } from './panels/ObjectsPanel';
 import { BoxInspector } from './panels/BoxInspector';
 import { ObjectInspector } from './panels/ObjectInspector';
+import { FavoriteColorsManager } from './panels/FavoriteColorsManager';
 import { CollapsibleGroup } from './ui/CollapsibleGroup';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 
@@ -31,6 +32,7 @@ export default function App() {
   const exportProject = useStore((s) => s.exportProject);
   const importProject = useStore((s) => s.importProject);
   const editingSurfaceId = useStore((s) => s.editingSurfaceId);
+  const favoritePicker = useStore((s) => s.favoritePicker);
   const rooms = useStore((s) => s.project.rooms);
   const importInput = useRef<HTMLInputElement | null>(null);
 
@@ -130,6 +132,7 @@ export default function App() {
       </div>
 
       {editingSurfaceId && <SurfaceEditor />}
+      {favoritePicker && <FavoriteColorsManager />}
     </div>
   );
 }

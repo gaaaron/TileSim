@@ -85,6 +85,13 @@ export interface SceneObject {
   roomId?: Id;
 }
 
+/** Elnevezett kedvenc szín (a projekttel együtt mentődik, minden színválasztónál elérhető). */
+export interface FavoriteColor {
+  id: Id;
+  name: string;
+  color: string;
+}
+
 /** Egy csempézhető felület típusa. */
 export type SurfaceKind = 'floor' | 'ceiling' | 'wall' | 'box-face';
 
@@ -165,6 +172,8 @@ export interface Project {
   roomHidden: Record<string, boolean>;
   /** Felület alapszín-felülírás: surfaceId → szín (a származtatott alapszín helyett). */
   surfaceBaseColor: Record<string, string>;
+  /** Elnevezett kedvenc színek (minden színválasztónál kiválaszthatók). */
+  favoriteColors: FavoriteColor[];
 }
 
 export function uid(prefix = ''): Id {

@@ -84,8 +84,10 @@ panels/
   ObjectsPanel.tsx   # GLB feltöltés + modellből példány elhelyezése + elhelyezett objektumok listája
   BoxInspector.tsx   # kijelölt doboz méret/pozíció popup
   ObjectInspector.tsx # kijelölt 3D objektum méret/pozíció popup (mint a dobozé)
+  FavoriteColorsManager.tsx # kedvenc-szín popup: jelenlegi szín mentése + kiválasztás (a hívó mezőre) + név/szín szerk., törlés
 ui/
   CollapsibleGroup.tsx # összecsukható oldalpanel-csoport (akkordeon)
+  ColorField.tsx     # kompakt színválasztó: natív input + EGYETLEN ★ ikon → kedvenc-popup (mentés/kiválasztás ott)
   ErrorBoundary.tsx  # egy nézet hibája (pl. nincs WebGL) ne döntse le az egész appot
 store/projectStore.ts # zustand store (állapot + akciók + undo/redo + autosave)
 db/storage.ts         # IndexedDB: projekt + kép-blobok, hydrateImageUrls()
@@ -131,6 +133,15 @@ App.tsx, main.tsx, styles.css, vite-env.d.ts
   A `surfaceBaseColor: Record<surfaceId, szín>` felülírja egy felület származtatott alapszínét (a
   csempe nélküli rész színe); a `surfaces()` szelektor alkalmazza. Egyedi: `setSurfaceBaseColor` (SurfaceEditor
   fejléc-színválasztó); csoportos: `setRoomSurfacesBaseColor` a szoba MINDEN oldalára (`RoomEditor`).
+  A `favoriteColors: FavoriteColor[]` ({id,name,color}) elnevezett kedvenc színek — a projektben mentve
+  (export/import, undo). Akciók: `addFavoriteColor(color,name?)`, `updateFavoriteColor`, `removeFavoriteColor`,
+  `openFavoriteColors(target|null)` — a `target = {color, onPick}` a `favoritePicker` UI-state, amiből a popup
+  tudja, MELYIK mezőnek adja vissza a kiválasztott színt. Minden színválasztó a **kompakt `ColorField`**:
+  natív input + EGYETLEN ★ ikon, ami a popupot nyitja (helyben nem foglal helyet). A `FavoriteColorsManager`
+  popupban történik a jelenlegi szín **mentése** (★ Mentés; „Már mentve", ha már benne van) ÉS a **kiválasztás**
+  (swatch-ra katt → `onPick` a hívó mezőre, majd zár), plusz név/szín szerkesztés és törlés. Használat:
+  SurfaceEditor, RoomEditor, TileInspector (szín+fuga), TileLibraryPanel (fuga). App-szinten mountolt (`favoritePicker &&`).
+
   **Fontos:** a felületek geometriája NINCS tárolva — a szobákból/dobozokból **származtatott**
   (lásd 6.1). Csak a felülethez tartozó `subRegions` perzisztálódik `surfaceData[surfaceId]` alatt.
 
@@ -451,6 +462,11 @@ az érintett szakaszt és szükség esetén a gotchas-t (12). Új buktató → m
 Changelog-ot. A dokumentáció magyarul készül; a kód-azonosítók angolul maradnak.
 
 ## 16. Changelog
+- **2026-08-04** — **Kedvenc színek (elnevezett).** `project.favoriteColors` ({id,name,color}) a projektben
+  mentve (export/import, undo). Kompakt **`ColorField`** minden színválasztónál: natív input + EGYETLEN ★ ikon,
+  ami a `FavoriteColorsManager` popupot nyitja — ott történik a jelenlegi szín mentése ÉS a kiválasztás
+  (a hívó mezőre alkalmazva a `favoritePicker={color,onPick}` célponton át), plusz név/szín szerk. és törlés.
+  Használat: SurfaceEditor, RoomEditor, TileInspector (szín+fuga), TileLibraryPanel (fuga).
 - **2026-08-04** — **GitHub Pages deploy.** `vite.config.ts` `base=/TileSim/` (prod), `.github/workflows/
   deploy.yml` (build → Pages). Cím: https://gaaaron.github.io/TileSim/. Lásd 14.5.
 - **2026-08-04** — **Szoba magasság a szoba-szerkesztőben.** A `RoomEditor` popup kapott egy „Magasság (cm)"

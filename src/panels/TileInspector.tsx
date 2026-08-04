@@ -1,4 +1,5 @@
 import { useStore } from '../store/projectStore';
+import { ColorField } from '../ui/ColorField';
 
 interface Props {
   tileId: string;
@@ -50,10 +51,9 @@ export function TileInspector({ tileId, onClose }: Props) {
 
           <div className="form-row">
             <label>Szín</label>
-            <input
-              type="color"
+            <ColorField
               value={tile.color ?? '#c9c4b8'}
-              onChange={(e) => updateTileType(tile.id, { color: e.target.value })}
+              onChange={(c) => updateTileType(tile.id, { color: c })}
             />
             <span className="muted small">
               {tile.images.length > 0 ? '(kép esetén nem látszik)' : 'kép helyett ezzel renderel'}
@@ -85,11 +85,7 @@ export function TileInspector({ tileId, onClose }: Props) {
               onChange={(e) => updateTileType(tile.id, { groutMm: num(+e.target.value) })}
             />
             <span className="muted">mm</span>
-            <input
-              type="color"
-              value={tile.groutColor}
-              onChange={(e) => updateTileType(tile.id, { groutColor: e.target.value })}
-            />
+            <ColorField value={tile.groutColor} onChange={(c) => updateTileType(tile.id, { groutColor: c })} />
           </div>
 
           {tile.images.length > 0 && (

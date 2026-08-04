@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { boundingBox } from '../model/geometry';
 import { useStore } from '../store/projectStore';
+import { ColorField } from '../ui/ColorField';
 
 interface Props {
   roomId: string;
@@ -103,11 +104,7 @@ export function RoomEditor({ roomId, onClose }: Props) {
 
           <div className="form-row">
             <label>Falak alapszíne</label>
-            <input
-              type="color"
-              value={groupColor}
-              onChange={(e) => setRoomSurfacesBaseColor(roomId, e.target.value)}
-            />
+            <ColorField value={groupColor} onChange={(c) => setRoomSurfacesBaseColor(roomId, c)} />
             <span className="muted small">az összes oldalra (padló + falak)</span>
           </div>
         </div>

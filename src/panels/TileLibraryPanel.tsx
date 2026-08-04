@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useStore } from '../store/projectStore';
 import { TileInspector } from './TileInspector';
+import { ColorField } from '../ui/ColorField';
 
 /** Csempetípusok kezelése: létrehozás, képfeltöltés, fuga, törlés. */
 export function TileLibraryPanel() {
@@ -67,11 +68,7 @@ export function TileLibraryPanel() {
                 onChange={(e) => updateTileType(t.id, { groutMm: +e.target.value })}
               />
               <span className="muted">mm</span>
-              <input
-                type="color"
-                value={t.groutColor}
-                onChange={(e) => updateTileType(t.id, { groutColor: e.target.value })}
-              />
+              <ColorField value={t.groutColor} onChange={(c) => updateTileType(t.id, { groutColor: c })} />
             </div>
 
             <input

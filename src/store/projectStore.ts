@@ -42,6 +42,7 @@ function emptyProject(): Project {
     surfaceHidden: {},
     roomHidden: {},
     surfaceBaseColor: {},
+    favoriteColors: [],
   };
 }
 
@@ -54,6 +55,7 @@ function migrateProject(project: Project): Project {
   project.surfaceHidden ??= {};
   project.roomHidden ??= {};
   project.surfaceBaseColor ??= {};
+  project.favoriteColors ??= [];
   project.models ??= [];
   project.objects ??= [];
   for (const t of project.tileTypes) {
@@ -99,6 +101,9 @@ interface State {
   editingSurfaceId: string | null;
   selectedSubRegionId: string | null;
   selectedCells: string[];
+  /** A kedvenc-szín popup célmezője (ami megnyitotta): a jelenlegi szín + a kiválasztás alkalmazója.
+   *  null = zárva. A popup innen tudja, melyik színválasztóra alkalmazza a kiválasztott kedvencet. */
+  favoritePicker: { color: string; onPick: (color: string) => void } | null;
   loaded: boolean;
 
   // history
@@ -174,6 +179,12 @@ interface State {
   setSurfaceBaseColor: (surfaceId: string, color: string) => void;
   setRoomSurfacesBaseColor: (roomId: string, color: string) => void;
 
+  // kedvenc színek (a projektben mentve; minden színválasztónál elérhetők)
+  openFavoriteColors: (target: { color: string; onPick: (color: string) => void } | null) => void;
+  addFavoriteColor: (color: string, name?: string) => string;
+  updateFavoriteColor: (id: string, patch: Partial<{ name: string; color: string }>) => void;
+  removeFavoriteColor: (id: string) => void;
+
   // húzás-koalescálás (egy undo-lépés / húzás): mozgatás, átméretezés
   beginDrag: () => void;
   endDrag: () => void;
@@ -220,6 +231,7 @@ export const useStore = create<State>((set, get) => {
     editingSurfaceId: null,
     selectedSubRegionId: null,
     selectedCells: [],
+    favoritePicker: null,
     loaded: false,
     past: [],
     future: [],
@@ -581,6 +593,28 @@ export const useStore = create<State>((set, get) => {
             p.surfaceBaseColor[`${roomId}:wall:${i}`] = color;
           }
         }
+        return p;
+      }),
+
+    openFavoriteColors: (target) => set({ favoritePicker: target }),
+    addFavoriteColor: (color, name) => {
+      const id = uid('fav_');
+      mutate((p) => {
+        p.favoriteColors ??= [];
+        p.favoriteColors.push({ id, name: name ?? color.toUpperCase(), color });
+        return p;
+      });
+      return id;
+    },
+    updateFavoriteColor: (id, patch) =>
+      mutate((p) => {
+        const f = (p.favoriteColors ??= []).find((c) => c.id === id);
+        if (f) Object.assign(f, patch);
+        return p;
+      }),
+    removeFavoriteColor: (id) =>
+      mutate((p) => {
+        p.favoriteColors = (p.favoriteColors ?? []).filter((c) => c.id !== id);
         return p;
       }),
 

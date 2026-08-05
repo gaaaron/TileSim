@@ -1,4 +1,40 @@
+import { FavoriteColor } from '../model/types';
 import { useStore } from '../store/projectStore';
+import { useColorCommit } from '../ui/useColorCommit';
+
+/** Egy kedvenc-sor: kiválasztás (swatch), név, szín (rAF-ritkított, egy undo-lépés), törlés. */
+function FavoriteRow({ fav, onPick }: { fav: FavoriteColor; onPick: (c: string) => void }) {
+  const updateFavoriteColor = useStore((s) => s.updateFavoriteColor);
+  const removeFavoriteColor = useStore((s) => s.removeFavoriteColor);
+  const { change, end } = useColorCommit((c) => updateFavoriteColor(fav.id, { color: c }));
+  return (
+    <div className="fav-row">
+      <button
+        type="button"
+        className="swatch"
+        style={{ background: fav.color }}
+        title={`Kiválasztás (alkalmazás): ${fav.name}`}
+        onClick={() => onPick(fav.color)}
+      />
+      <input
+        className="fav-name"
+        value={fav.name}
+        placeholder="Név"
+        onChange={(e) => updateFavoriteColor(fav.id, { name: e.target.value })}
+      />
+      <input
+        type="color"
+        value={fav.color}
+        title="A kedvenc szín módosítása"
+        onChange={(e) => change(e.target.value)}
+        onBlur={end}
+      />
+      <button className="icon danger" title="Törlés" onClick={() => removeFavoriteColor(fav.id)}>
+        ✕
+      </button>
+    </div>
+  );
+}
 
 /**
  * Kedvenc színek popup. A megnyitó színválasztó a `favoritePicker`-en át adja át a jelenlegi színt és a
@@ -9,8 +45,6 @@ export function FavoriteColorsManager() {
   const favorites = useStore((s) => s.project.favoriteColors);
   const target = useStore((s) => s.favoritePicker);
   const addFavoriteColor = useStore((s) => s.addFavoriteColor);
-  const updateFavoriteColor = useStore((s) => s.updateFavoriteColor);
-  const removeFavoriteColor = useStore((s) => s.removeFavoriteColor);
   const openFavoriteColors = useStore((s) => s.openFavoriteColors);
 
   const close = () => openFavoriteColors(null);
@@ -50,30 +84,7 @@ export function FavoriteColorsManager() {
             <p className="muted small">Még nincs mentett szín. A fenti „★ Mentés"-sel adhatod hozzá a jelenlegit.</p>
           )}
           {favorites.map((f) => (
-            <div key={f.id} className="fav-row">
-              <button
-                type="button"
-                className="swatch"
-                style={{ background: f.color }}
-                title={`Kiválasztás (alkalmazás): ${f.name}`}
-                onClick={() => pick(f.color)}
-              />
-              <input
-                className="fav-name"
-                value={f.name}
-                placeholder="Név"
-                onChange={(e) => updateFavoriteColor(f.id, { name: e.target.value })}
-              />
-              <input
-                type="color"
-                value={f.color}
-                title="A kedvenc szín módosítása"
-                onChange={(e) => updateFavoriteColor(f.id, { color: e.target.value })}
-              />
-              <button className="icon danger" title="Törlés" onClick={() => removeFavoriteColor(f.id)}>
-                ✕
-              </button>
-            </div>
+            <FavoriteRow key={f.id} fav={f} onPick={pick} />
           ))}
         </div>
       </div>

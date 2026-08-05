@@ -139,6 +139,8 @@ export function SurfaceEditor() {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !surface) return;
+    // rAF-ritkítás: több gyors újrarender (alterület-húzás, színkeverés) frame-enként EGY rajzolássá olvad
+    const rafId = requestAnimationFrame(() => {
     const W = surface.widthCm * scale;
     const H = surface.heightCm * scale;
     canvas.width = W;
@@ -254,6 +256,8 @@ export function SurfaceEditor() {
       );
       ctx.setLineDash([]);
     }
+    });
+    return () => cancelAnimationFrame(rafId);
   });
 
   if (!surface) return null;

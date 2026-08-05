@@ -88,6 +88,7 @@ panels/
 ui/
   CollapsibleGroup.tsx # összecsukható oldalpanel-csoport (akkordeon)
   ColorField.tsx     # kompakt színválasztó: natív input + EGYETLEN ★ ikon → kedvenc-popup (mentés/kiválasztás ott)
+  useColorCommit.ts  # szín onChange → EGY undo-lépés + rAF-ritkított store-frissítés (kevesebb újrarajzolás)
   ErrorBoundary.tsx  # egy nézet hibája (pl. nincs WebGL) ne döntse le az egész appot
 store/projectStore.ts # zustand store (állapot + akciók + undo/redo + autosave)
 db/storage.ts         # IndexedDB: projekt + kép-blobok, hydrateImageUrls()
@@ -462,6 +463,13 @@ az érintett szakaszt és szükség esetén a gotchas-t (12). Új buktató → m
 Changelog-ot. A dokumentáció magyarul készül; a kód-azonosítók angolul maradnak.
 
 ## 16. Changelog
+- **2026-08-04** — **Szín = egy undo-lépés + kevesebb lassulás.** A színválasztó folyamatos `onChange`-e eddig
+  minden apró változásnál külön undo-elemet rakott be és `structuredClone`-ozott (lassulás). Új `useColorCommit`
+  hook: az első változásnál `beginDrag` (egy pillanatkép), a többit elnyomja, `onBlur`-nél `endDrag` — így egy
+  keverés EGY undo-lépés; ráadásul `requestAnimationFrame`-mel frame-enként egyszer megy a store-ba (kevesebb
+  újrarajzolás). Használja a `ColorField` és a `FavoriteColorsManager` sorai (`FavoriteRow`). A `SurfaceEditor`
+  vászon-rajzolása is rAF-ritkított (alterület-húzás simább). A dobozok/objektumok/szoba-csúcsok/alterületek
+  húzása már eddig is EGY undo-lépés volt (`beginDrag`/`endDrag`) — ez változatlan.
 - **2026-08-04** — **Kedvenc színek (elnevezett).** `project.favoriteColors` ({id,name,color}) a projektben
   mentve (export/import, undo). Kompakt **`ColorField`** minden színválasztónál: natív input + EGYETLEN ★ ikon,
   ami a `FavoriteColorsManager` popupot nyitja — ott történik a jelenlegi szín mentése ÉS a kiválasztás

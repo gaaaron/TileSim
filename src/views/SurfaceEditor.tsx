@@ -385,7 +385,11 @@ export function SurfaceEditor() {
     const h = Math.abs(d.y1 - d.y0);
 
     if (mode === 'region') {
-      if (w > 3 && h > 3) {
+      // minimum húzás a véletlen kattintás kiszűrésére: normál felületen 3 cm, de KIS felületen a felület
+      // felére csökken – így pl. egy 2 cm magas doboz-oldalra is lehet alterületet rajzolni (különben h>3 sose teljesül)
+      const minW = Math.min(3, surface.widthCm / 2);
+      const minH = Math.min(3, surface.heightCm / 2);
+      if (w > minW && h > minH) {
         const poly: Pt[] = [
           { x, y },
           { x: x + w, y },

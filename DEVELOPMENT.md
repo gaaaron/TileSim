@@ -463,6 +463,10 @@ az érintett szakaszt és szükség esetén a gotchas-t (12). Új buktató → m
 Changelog-ot. A dokumentáció magyarul készül; a kód-azonosítók angolul maradnak.
 
 ## 16. Changelog
+- **2026-08-04** — **Fix: kis felületre nem lehetett alterületet rajzolni.** Az új alterület húzásának
+  minimuma fix 3 cm volt mindkét irányban, ezért egy pl. 2 cm magas doboz-oldalra sose jött létre (`h>3`).
+  Megoldás (`SurfaceEditor.onUp`): a minimum a felület felére korlátozódik — `min(3, dim/2)` —, így normál
+  felületen marad a 3 cm (véletlen kattintás kiszűrése), kis felületen viszont teljes-oldalas húzással működik.
 - **2026-08-04** — **Szín = egy undo-lépés + kevesebb lassulás.** A színválasztó folyamatos `onChange`-e eddig
   minden apró változásnál külön undo-elemet rakott be és `structuredClone`-ozott (lassulás). Új `useColorCommit`
   hook: az első változásnál `beginDrag` (egy pillanatkép), a többit elnyomja, `onBlur`-nél `endDrag` — így egy

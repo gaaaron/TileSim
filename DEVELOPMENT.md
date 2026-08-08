@@ -457,6 +457,9 @@ Az app **tisztán kliensoldali** statikus SPA (nincs backend; IndexedDB tárolá
   `npm run build` → a `dist` feltöltése a Pages-re (`upload-pages-artifact` + `deploy-pages`).
 - **Egyszeri kapcsoló:** repo → Settings → Pages → Source: **GitHub Actions**. A repónak **publikusnak** kell
   lennie (ingyenes csomagban). Nincs kliensoldali útvonal-routing → nincs SPA 404-átirányítás.
+- **Analitika:** GoatCounter (süti nélküli, ingyenes) egy `<script>`-tel az `index.html` `<head>`-jében.
+  Dashboard: https://tilesim.goatcounter.com. A `count.js` a localhoston nem számol (dev-zaj kihagyása),
+  így csak az élő oldal forgalma látszik.
 
 ## 14.6 Többnyelvűség (i18n, hu/en)
 Az `i18n/i18n.ts` egy önálló, függőség nélküli i18n réteg:

@@ -1,5 +1,6 @@
 import { useStore } from '../store/projectStore';
 import { useColorCommit } from './useColorCommit';
+import { useT } from '../i18n/i18n';
 
 interface Props {
   value: string;
@@ -15,6 +16,7 @@ interface Props {
 export function ColorField({ value, onChange, title }: Props) {
   const openFavoriteColors = useStore((s) => s.openFavoriteColors);
   const { change, end } = useColorCommit(onChange);
+  const t = useT();
   return (
     <span className="color-field" title={title}>
       <input
@@ -26,7 +28,7 @@ export function ColorField({ value, onChange, title }: Props) {
       <button
         type="button"
         className="icon small"
-        title="Kedvenc színek (mentés / kiválasztás)"
+        title={t('colorField.title')}
         onClick={() => openFavoriteColors({ color: value, onPick: onChange })}
       >
         ★

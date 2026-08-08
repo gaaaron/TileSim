@@ -13,6 +13,7 @@ import { ObjectInspector } from './panels/ObjectInspector';
 import { FavoriteColorsManager } from './panels/FavoriteColorsManager';
 import { CollapsibleGroup } from './ui/CollapsibleGroup';
 import { ErrorBoundary } from './ui/ErrorBoundary';
+import { useT, useLangStore } from './i18n/i18n';
 
 export default function App() {
   const init = useStore((s) => s.init);
@@ -35,12 +36,20 @@ export default function App() {
   const favoritePicker = useStore((s) => s.favoritePicker);
   const rooms = useStore((s) => s.project.rooms);
   const importInput = useRef<HTMLInputElement | null>(null);
+  const t = useT();
+  const lang = useLangStore((s) => s.lang);
+  const setLang = useLangStore((s) => s.setLang);
 
   useEffect(() => {
     init();
   }, [init]);
 
-  if (!loaded) return <div className="loading">Betöltés…</div>;
+  useEffect(() => {
+    document.title = t('app.title');
+    document.documentElement.lang = lang;
+  }, [t, lang]);
+
+  if (!loaded) return <div className="loading">{t('app.loading')}</div>;
 
   const finishRoom = () => commitDraftRoom();
 
@@ -49,40 +58,45 @@ export default function App() {
       <header className="toolbar">
         <div className="tabs">
           <button className={viewMode === 'plan' ? 'active' : ''} onClick={() => setViewMode('plan')}>
-            Alaprajz
+            {t('app.tab.plan')}
           </button>
           <button className={viewMode === '3d' ? 'active' : ''} onClick={() => setViewMode('3d')}>
-            3D nézet
+            {t('app.tab.3d')}
           </button>
         </div>
 
         <div className="spacer" />
 
         {viewMode === 'plan' && planTool !== 'draw-room' && (
-          <button onClick={startDraftRoom}>+ Szoba rajzolása</button>
+          <button onClick={startDraftRoom}>{t('app.drawRoom')}</button>
         )}
         {planTool === 'draw-room' && (
           <div className="draw-controls">
-            <span className="muted">
-              {draftRoom?.length ?? 0} pont — húzd a falakat (Shift = egyenes), a kezdőpontra kattintva záródik
-            </span>
-            <label>Magasság</label>
+            <span className="muted">{t('app.draw.points', { n: draftRoom?.length ?? 0 })}</span>
+            <label>{t('app.height')}</label>
             <input type="number" value={height} style={{ width: 64 }} onChange={(e) => setHeight(+e.target.value)} />
-            <span className="muted">cm</span>
+            <span className="muted">{t('app.cm')}</span>
             <button className="primary" disabled={(draftRoom?.length ?? 0) < 3} onClick={finishRoom}>
-              Kész
+              {t('app.done')}
             </button>
-            <button onClick={cancelDraftRoom}>Mégse</button>
+            <button onClick={cancelDraftRoom}>{t('app.cancel')}</button>
           </div>
         )}
 
         <button disabled={rooms.length === 0} onClick={addBox}>
-          + Doboz
+          {t('app.addBox')}
         </button>
-        <button onClick={undo} title="Visszavonás">↶</button>
-        <button onClick={redo} title="Újra">↷</button>
-        <button onClick={() => exportProject()} title="Projekt exportálása (a textúrákkal)">⭳ Export</button>
-        <button onClick={() => importInput.current?.click()} title="Projekt importálása">⭱ Import</button>
+        <button onClick={undo} title={t('app.undo')}>↶</button>
+        <button onClick={redo} title={t('app.redo')}>↷</button>
+        <button onClick={() => exportProject()} title={t('app.exportTitle')}>{t('app.export')}</button>
+        <button onClick={() => importInput.current?.click()} title={t('app.importTitle')}>{t('app.import')}</button>
+        <button
+          className="lang-toggle"
+          title={t('app.langTitle')}
+          onClick={() => setLang(lang === 'hu' ? 'en' : 'hu')}
+        >
+          {lang === 'hu' ? 'EN' : 'HU'}
+        </button>
         <input
           ref={importInput}
           type="file"
@@ -95,7 +109,7 @@ export default function App() {
             try {
               await importProject(file);
             } catch (err) {
-              alert('Importálás sikertelen: ' + (err as Error).message);
+              alert(t('app.importFailed', { msg: (err as Error).message }));
             }
           }}
         />
@@ -103,29 +117,25 @@ export default function App() {
 
       <div className="main">
         <aside className="sidebar">
-          <CollapsibleGroup title="Szobák">
+          <CollapsibleGroup title={t('group.rooms')}>
             <RoomsPanel />
           </CollapsibleGroup>
-          <CollapsibleGroup title="Oldalak" defaultOpen={false}>
+          <CollapsibleGroup title={t('group.surfaces')} defaultOpen={false}>
             <SurfacesPanel />
           </CollapsibleGroup>
-          <CollapsibleGroup title="Csempék">
+          <CollapsibleGroup title={t('group.tiles')}>
             <TileLibraryPanel />
           </CollapsibleGroup>
-          <CollapsibleGroup title="3D objektumok" defaultOpen={false}>
+          <CollapsibleGroup title={t('group.objects')} defaultOpen={false}>
             <ObjectsPanel />
           </CollapsibleGroup>
-          <CollapsibleGroup title="Anyagszükséglet" defaultOpen={false}>
+          <CollapsibleGroup title={t('group.materials')} defaultOpen={false}>
             <MaterialPanel />
           </CollapsibleGroup>
         </aside>
         <main className="viewport">
           <ErrorBoundary>{viewMode === 'plan' ? <PlanView /> : <View3D />}</ErrorBoundary>
-          <div className="hint">
-            {viewMode === 'plan'
-              ? 'Tipp: dobozokat húzással mozgathatsz. Dupla katt egy felületre = szerkesztés.'
-              : 'Tipp: forgatás bal egér, dupla katt egy falra/padlóra/oldalra = csempe-szerkesztő.'}
-          </div>
+          <div className="hint">{viewMode === 'plan' ? t('app.hint.plan') : t('app.hint.3d')}</div>
           <BoxInspector />
           <ObjectInspector />
         </main>

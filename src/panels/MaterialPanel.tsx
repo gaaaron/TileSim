@@ -3,6 +3,7 @@ import { Project } from '../model/types';
 import { allSurfaces, pointInPolygon } from '../model/geometry';
 import { subRegionTiles } from '../render/SurfaceTexture';
 import { useStore } from '../store/projectStore';
+import { useT } from '../i18n/i18n';
 
 interface MaterialRow {
   tileId: string;
@@ -42,9 +43,10 @@ function computeMaterials(project: Project): MaterialRow[] {
 export function MaterialPanel() {
   const project = useStore((s) => s.project);
   const rows = useMemo(() => computeMaterials(project), [project]);
+  const t = useT();
 
   if (rows.length === 0) {
-    return <p className="muted small">Nincs csempézett terület.</p>;
+    return <p className="muted small">{t('materials.empty')}</p>;
   }
 
   const totalPieces = rows.reduce((a, r) => a + r.pieces, 0);
@@ -53,8 +55,8 @@ export function MaterialPanel() {
   return (
     <div className="material-list">
       <div className="material-row material-head">
-        <span className="link">Csempe</span>
-        <span className="muted small">db</span>
+        <span className="link">{t('materials.tile')}</span>
+        <span className="muted small">{t('materials.pcs')}</span>
         <span className="muted small">m²</span>
       </div>
       {rows.map((r) => (
@@ -65,11 +67,11 @@ export function MaterialPanel() {
         </div>
       ))}
       <div className="material-row material-total">
-        <span className="link">Összesen</span>
+        <span className="link">{t('materials.total')}</span>
         <span>{totalPieces}</span>
         <span>{totalArea.toFixed(2)}</span>
       </div>
-      <p className="muted small">A vágott darabok is 1 db-nak számítanak (becslés).</p>
+      <p className="muted small">{t('materials.note')}</p>
     </div>
   );
 }

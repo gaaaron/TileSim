@@ -302,3 +302,6 @@ button.icon.small { padding: 1px 5px; font-size: 12px; line-height: 1.3; }
 .swatch-lg { width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--border); display: inline-block; }
 .tile-inspector-body hr.sep { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
 .fav-row .swatch { width: 24px; height: 24px; }
+
+/* Nyelvváltó gomb a toolbarban */
+.lang-toggle { font-weight: 600; min-width: 34px; }

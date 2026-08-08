@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { useStore } from '../store/projectStore';
 import { TileInspector } from './TileInspector';
 import { ColorField } from '../ui/ColorField';
+import { useT } from '../i18n/i18n';
 
 /** Csempetípusok kezelése: létrehozás, képfeltöltés, fuga, törlés. */
 export function TileLibraryPanel() {
@@ -10,8 +11,9 @@ export function TileLibraryPanel() {
   const updateTileType = useStore((s) => s.updateTileType);
   const removeTileType = useStore((s) => s.removeTileType);
   const addImagesToTile = useStore((s) => s.addImagesToTile);
+  const t = useT();
 
-  const [name, setName] = useState('Terrakotta');
+  const [name, setName] = useState(t('tilelib.defaultName'));
   const [w, setW] = useState(40);
   const [h, setH] = useState(60);
   const [editId, setEditId] = useState<string | null>(null);
@@ -20,70 +22,70 @@ export function TileLibraryPanel() {
   return (
     <div className="panel">
       <div className="form-row">
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Név" />
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('tilelib.namePlaceholder')} />
       </div>
       <div className="form-row">
-        <label>Méret (cm)</label>
+        <label>{t('tilelib.size')}</label>
         <input type="number" value={w} min={1} onChange={(e) => setW(+e.target.value)} style={{ width: 60 }} />
         <span>×</span>
         <input type="number" value={h} min={1} onChange={(e) => setH(+e.target.value)} style={{ width: 60 }} />
       </div>
       <button className="primary" onClick={() => addTileType(name, w, h)}>
-        + Csempetípus
+        {t('tilelib.addType')}
       </button>
 
       <div className="tile-list">
-        {tileTypes.map((t) => (
-          <div key={t.id} className="tile-card">
+        {tileTypes.map((tt) => (
+          <div key={tt.id} className="tile-card">
             <div className="tile-card-head">
-              <button className="tile-edit-btn" onClick={() => setEditId(t.id)} title="Szerkesztés">
-                <strong>{t.name}</strong>
+              <button className="tile-edit-btn" onClick={() => setEditId(tt.id)} title={t('tilelib.edit')}>
+                <strong>{tt.name}</strong>
                 <span className="muted">
-                  {t.widthCm}×{t.heightCm} cm
+                  {tt.widthCm}×{tt.heightCm} cm
                 </span>
                 <span className="edit-hint">✎</span>
               </button>
-              <button className="icon danger" onClick={() => removeTileType(t.id)} title="Törlés">
+              <button className="icon danger" onClick={() => removeTileType(tt.id)} title={t('tilelib.delete')}>
                 ✕
               </button>
             </div>
 
             <div className="thumbs">
-              {t.images.map((img) => (
+              {tt.images.map((img) => (
                 <img key={img.id} src={img.url} alt={img.name} className="thumb" />
               ))}
-              {t.images.length === 0 && (
-                <span className="thumb" style={{ background: t.color ?? '#c9c4b8' }} title="Sima szín" />
+              {tt.images.length === 0 && (
+                <span className="thumb" style={{ background: tt.color ?? '#c9c4b8' }} title={t('tilelib.plainColor')} />
               )}
             </div>
 
             <div className="form-row">
-              <label className="muted">Fuga</label>
+              <label className="muted">{t('tilelib.grout')}</label>
               <input
                 type="number"
-                value={t.groutMm}
+                value={tt.groutMm}
                 min={0}
                 step={0.5}
                 style={{ width: 56 }}
-                onChange={(e) => updateTileType(t.id, { groutMm: +e.target.value })}
+                onChange={(e) => updateTileType(tt.id, { groutMm: +e.target.value })}
               />
-              <span className="muted">mm</span>
-              <ColorField value={t.groutColor} onChange={(c) => updateTileType(t.id, { groutColor: c })} />
+              <span className="muted">{t('tile.mm')}</span>
+              <ColorField value={tt.groutColor} onChange={(c) => updateTileType(tt.id, { groutColor: c })} />
             </div>
 
             <input
-              ref={(el) => (fileInputs.current[t.id] = el)}
+              ref={(el) => (fileInputs.current[tt.id] = el)}
               type="file"
               accept="image/*"
               multiple
               style={{ display: 'none' }}
               onChange={(e) => {
                 const files = Array.from(e.target.files ?? []);
-                if (files.length) addImagesToTile(t.id, files);
+                if (files.length) addImagesToTile(tt.id, files);
                 e.target.value = '';
               }}
             />
-            <button onClick={() => fileInputs.current[t.id]?.click()}>+ Kép feltöltése</button>
+            <button onClick={() => fileInputs.current[tt.id]?.click()}>{t('tilelib.uploadImage')}</button>
           </div>
         ))}
       </div>

@@ -1,35 +1,37 @@
 import { FavoriteColor } from '../model/types';
 import { useStore } from '../store/projectStore';
 import { useColorCommit } from '../ui/useColorCommit';
+import { useT } from '../i18n/i18n';
 
 /** Egy kedvenc-sor: kiválasztás (swatch), név, szín (rAF-ritkított, egy undo-lépés), törlés. */
 function FavoriteRow({ fav, onPick }: { fav: FavoriteColor; onPick: (c: string) => void }) {
   const updateFavoriteColor = useStore((s) => s.updateFavoriteColor);
   const removeFavoriteColor = useStore((s) => s.removeFavoriteColor);
   const { change, end } = useColorCommit((c) => updateFavoriteColor(fav.id, { color: c }));
+  const t = useT();
   return (
     <div className="fav-row">
       <button
         type="button"
         className="swatch"
         style={{ background: fav.color }}
-        title={`Kiválasztás (alkalmazás): ${fav.name}`}
+        title={t('fav.pick', { name: fav.name })}
         onClick={() => onPick(fav.color)}
       />
       <input
         className="fav-name"
         value={fav.name}
-        placeholder="Név"
+        placeholder={t('fav.namePlaceholder')}
         onChange={(e) => updateFavoriteColor(fav.id, { name: e.target.value })}
       />
       <input
         type="color"
         value={fav.color}
-        title="A kedvenc szín módosítása"
+        title={t('fav.editColor')}
         onChange={(e) => change(e.target.value)}
         onBlur={end}
       />
-      <button className="icon danger" title="Törlés" onClick={() => removeFavoriteColor(fav.id)}>
+      <button className="icon danger" title={t('fav.delete')} onClick={() => removeFavoriteColor(fav.id)}>
         ✕
       </button>
     </div>
@@ -46,6 +48,7 @@ export function FavoriteColorsManager() {
   const target = useStore((s) => s.favoritePicker);
   const addFavoriteColor = useStore((s) => s.addFavoriteColor);
   const openFavoriteColors = useStore((s) => s.openFavoriteColors);
+  const t = useT();
 
   const close = () => openFavoriteColors(null);
   const current = target?.color ?? '#cccccc';
@@ -59,7 +62,7 @@ export function FavoriteColorsManager() {
     <div className="modal-overlay" onClick={close}>
       <div className="modal tile-inspector" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <strong>Kedvenc színek</strong>
+          <strong>{t('fav.title')}</strong>
           <button className="icon" onClick={close}>
             ✕
           </button>
@@ -70,19 +73,17 @@ export function FavoriteColorsManager() {
           <div className="fav-row">
             <span className="swatch-lg" style={{ background: current }} />
             <span className="muted small" style={{ flex: 1 }}>
-              Jelenlegi szín: {current.toUpperCase()}
+              {t('fav.current', { hex: current.toUpperCase() })}
             </span>
             <button disabled={alreadySaved} onClick={() => addFavoriteColor(current)}>
-              {alreadySaved ? 'Már mentve' : '★ Mentés'}
+              {alreadySaved ? t('fav.saved') : t('fav.save')}
             </button>
           </div>
 
           <hr className="sep" />
 
-          <h4>Mentett színek</h4>
-          {favorites.length === 0 && (
-            <p className="muted small">Még nincs mentett szín. A fenti „★ Mentés"-sel adhatod hozzá a jelenlegit.</p>
-          )}
+          <h4>{t('fav.savedList')}</h4>
+          {favorites.length === 0 && <p className="muted small">{t('fav.empty')}</p>}
           {favorites.map((f) => (
             <FavoriteRow key={f.id} fav={f} onPick={pick} />
           ))}

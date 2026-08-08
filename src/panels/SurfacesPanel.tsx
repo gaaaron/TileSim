@@ -1,4 +1,5 @@
 import { useStore } from '../store/projectStore';
+import { useT } from '../i18n/i18n';
 
 /** „Oldalak" csoport: minden felület egy sorban — láthatóság-checkbox + sorra kattintva szerkesztő. */
 export function SurfacesPanel() {
@@ -6,9 +7,10 @@ export function SurfacesPanel() {
   const openSurfaceEditor = useStore((s) => s.openSurfaceEditor);
   const toggleSurfaceHidden = useStore((s) => s.toggleSurfaceHidden);
   const editingSurfaceId = useStore((s) => s.editingSurfaceId);
+  const t = useT();
 
   if (surfaces.length === 0) {
-    return <p className="muted small">Még nincs oldal. Hozz létre szobát vagy dobozt.</p>;
+    return <p className="muted small">{t('surfaces.empty')}</p>;
   }
 
   return (
@@ -18,13 +20,13 @@ export function SurfacesPanel() {
           <input
             type="checkbox"
             checked={!s.hidden}
-            title="Láthatóság"
+            title={t('surfaces.visibility')}
             onChange={() => toggleSurfaceHidden(s.id)}
           />
           <button
             className={'link' + (s.hidden ? ' dim' : '')}
             onClick={() => openSurfaceEditor(s.id)}
-            title="Oldal szerkesztése"
+            title={t('surfaces.editSurface')}
           >
             {s.label}
           </button>

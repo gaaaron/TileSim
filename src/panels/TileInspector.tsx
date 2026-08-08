@@ -1,5 +1,6 @@
 import { useStore } from '../store/projectStore';
 import { ColorField } from '../ui/ColorField';
+import { useT } from '../i18n/i18n';
 
 interface Props {
   tileId: string;
@@ -10,6 +11,7 @@ interface Props {
 export function TileInspector({ tileId, onClose }: Props) {
   const tile = useStore((s) => s.project.tileTypes.find((t) => t.id === tileId));
   const updateTileType = useStore((s) => s.updateTileType);
+  const t = useT();
 
   if (!tile) return null;
   const num = (v: number) => (Number.isFinite(v) ? v : 0);
@@ -18,7 +20,7 @@ export function TileInspector({ tileId, onClose }: Props) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal tile-inspector" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <strong>Csempe szerkesztése</strong>
+          <strong>{t('tile.edit')}</strong>
           <button className="icon" onClick={onClose}>
             ✕
           </button>
@@ -26,12 +28,12 @@ export function TileInspector({ tileId, onClose }: Props) {
 
         <div className="tile-inspector-body">
           <div className="form-row">
-            <label>Név</label>
+            <label>{t('tile.name')}</label>
             <input value={tile.name} onChange={(e) => updateTileType(tile.id, { name: e.target.value })} />
           </div>
 
           <div className="form-row">
-            <label>Méret (cm)</label>
+            <label>{t('tile.size')}</label>
             <input
               type="number"
               min={1}
@@ -50,18 +52,18 @@ export function TileInspector({ tileId, onClose }: Props) {
           </div>
 
           <div className="form-row">
-            <label>Szín</label>
+            <label>{t('tile.color')}</label>
             <ColorField
               value={tile.color ?? '#c9c4b8'}
               onChange={(c) => updateTileType(tile.id, { color: c })}
             />
             <span className="muted small">
-              {tile.images.length > 0 ? '(kép esetén nem látszik)' : 'kép helyett ezzel renderel'}
+              {tile.images.length > 0 ? t('tile.colorHiddenImg') : t('tile.colorInstead')}
             </span>
           </div>
 
           <div className="form-row">
-            <label>Fényesség</label>
+            <label>{t('tile.gloss')}</label>
             <input
               type="range"
               min={0}
@@ -75,7 +77,7 @@ export function TileInspector({ tileId, onClose }: Props) {
           </div>
 
           <div className="form-row">
-            <label>Fuga</label>
+            <label>{t('tile.grout')}</label>
             <input
               type="number"
               min={0}
@@ -84,7 +86,7 @@ export function TileInspector({ tileId, onClose }: Props) {
               value={tile.groutMm}
               onChange={(e) => updateTileType(tile.id, { groutMm: num(+e.target.value) })}
             />
-            <span className="muted">mm</span>
+            <span className="muted">{t('tile.mm')}</span>
             <ColorField value={tile.groutColor} onChange={(c) => updateTileType(tile.id, { groutColor: c })} />
           </div>
 

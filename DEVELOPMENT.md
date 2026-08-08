@@ -92,6 +92,7 @@ ui/
   ErrorBoundary.tsx  # egy nézet hibája (pl. nincs WebGL) ne döntse le az egész appot
 store/projectStore.ts # zustand store (állapot + akciók + undo/redo + autosave)
 db/storage.ts         # IndexedDB: projekt + kép-blobok, hydrateImageUrls()
+i18n/i18n.ts          # többnyelvűség (hu/en): szótár + nyelv-detektálás + useT() hook + tr() (React-en kívül)
 App.tsx, main.tsx, styles.css, vite-env.d.ts
 ```
 
@@ -457,12 +458,34 @@ Az app **tisztán kliensoldali** statikus SPA (nincs backend; IndexedDB tárolá
 - **Egyszeri kapcsoló:** repo → Settings → Pages → Source: **GitHub Actions**. A repónak **publikusnak** kell
   lennie (ingyenes csomagban). Nincs kliensoldali útvonal-routing → nincs SPA 404-átirányítás.
 
+## 14.6 Többnyelvűség (i18n, hu/en)
+Az `i18n/i18n.ts` egy önálló, függőség nélküli i18n réteg:
+- **Szótár:** `hu` és `en` lapos, pont-elválasztott kulcsokkal (pl. `app.tab.plan`, `se.title`).
+- **Nyelv-detektálás (`detectLang`):** mentett `localStorage['tilesim.lang']` → `navigator.language` (`hu*` → magyar,
+  egyébként angol). A `useLangStore` (zustand) tartja az aktuális nyelvet; `setLang` menti localStorage-be.
+- **`useT()`** React hook: fordító `t(key, vars)`, ami a nyelvváltásra ÚJRARENDEREL (a `lang`-ra iratkozik).
+  Változó-behelyettesítés `{name}` tokenekkel.
+- **`tr(key, vars)`** React-en KÍVÜLI fordító (a `useLangStore.getState().lang`-ot olvassa) — a `geometry.ts`
+  származtatott oldal-címkéihez (`padló`/`fal`/`mennyezet`/doboz-oldalak) és a store alap-neveihez (`Szoba`/`Doboz`/projekt).
+- **Nyelvváltó:** a toolbar `.lang-toggle` gombja (HU⇄EN). A váltás **azonnali** (nincs újratöltés): a komponensek
+  `useT()`-n át újrarendelnek, a `surfaces()` szelektor pedig `tr()`-rel újraszámolja a címkéket.
+- **Fontos:** a felhasználói adat (szoba/csempe NÉV) NEM fordul — csak a UI-szövegek és a származtatott címkék
+  utótagja. Az alap-nevek a LÉTREHOZÁSKORI nyelven készülnek (utólag nem változnak). A `document.title` és a
+  `<html lang>` az App-ban frissül a nyelvre.
+- **Buktató:** ahol egy `.map((t) => …)` ciklusváltozó `t` volt, átneveztük `tt`-re, mert ütközött a `t = useT()`
+  fordítóval (TileLibraryPanel, SurfaceEditor csempe-dropdownok).
+
 ## 15. Dokumentációs szabály
 **Minden fejlesztésnél frissítsd ezt a fájlt.** Ha új funkciót/komponenst adsz: bővítsd a fájltérképet (4),
 az érintett szakaszt és szükség esetén a gotchas-t (12). Új buktató → mindig a MIÉRT-tel. A végén vezesd a
 Changelog-ot. A dokumentáció magyarul készül; a kód-azonosítók angolul maradnak.
 
 ## 16. Changelog
+- **2026-08-04** — **Többnyelvűség (magyar/angol).** Új `i18n/i18n.ts` (szótár + `useT()`/`tr()` + `useLangStore`).
+  A nyelv a böngésző/rendszer nyelvéből töltődik (`navigator.language`; `hu*` → magyar, egyébként angol),
+  localStorage-ban felülírható a toolbar HU/EN gombjával (azonnali váltás, újratöltés nélkül). Minden UI-szöveg
+  kulcsra cserélve (App, panelek, popupok, SurfaceEditor), a származtatott oldal-címkék (`geometry.ts`) és a store
+  alap-nevei (`Szoba`/`Doboz`/projekt) `tr()`-rel fordulnak. Lásd 14.6.
 - **2026-08-04** — **Fix: kis felületre nem lehetett alterületet rajzolni.** Az új alterület húzásának
   minimuma fix 3 cm volt mindkét irányban, ezért egy pl. 2 cm magas doboz-oldalra sose jött létre (`h>3`).
   Megoldás (`SurfaceEditor.onUp`): a minimum a felület felére korlátozódik — `min(3, dim/2)` —, így normál

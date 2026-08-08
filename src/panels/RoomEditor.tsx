@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { boundingBox } from '../model/geometry';
 import { useStore } from '../store/projectStore';
 import { ColorField } from '../ui/ColorField';
+import { useT } from '../i18n/i18n';
 
 interface Props {
   roomId: string;
@@ -18,6 +19,7 @@ export function RoomEditor({ roomId, onClose }: Props) {
   const [xText, setXText] = useState('');
   const [yText, setYText] = useState('');
   const [hText, setHText] = useState('');
+  const t = useT();
 
   useEffect(() => {
     if (room) {
@@ -55,7 +57,7 @@ export function RoomEditor({ roomId, onClose }: Props) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal tile-inspector" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <strong>Szoba szerkesztése</strong>
+          <strong>{t('roomEditor.title')}</strong>
           <button className="icon" onClick={onClose}>
             ✕
           </button>
@@ -63,12 +65,12 @@ export function RoomEditor({ roomId, onClose }: Props) {
 
         <div className="tile-inspector-body">
           <div className="form-row">
-            <label>Név</label>
+            <label>{t('roomEditor.name')}</label>
             <input value={room.name} onChange={(e) => updateRoom(roomId, { name: e.target.value })} />
           </div>
 
           <div className="form-row">
-            <label>Pozíció (cm)</label>
+            <label>{t('roomEditor.pos')}</label>
             <span className="muted">X</span>
             <input
               type="number"
@@ -85,11 +87,11 @@ export function RoomEditor({ roomId, onClose }: Props) {
               onChange={(e) => setYText(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && applyPosition()}
             />
-            <button onClick={applyPosition}>Áthelyez</button>
+            <button onClick={applyPosition}>{t('roomEditor.move')}</button>
           </div>
 
           <div className="form-row">
-            <label>Magasság (cm)</label>
+            <label>{t('roomEditor.height')}</label>
             <input
               type="number"
               min={1}
@@ -99,13 +101,13 @@ export function RoomEditor({ roomId, onClose }: Props) {
               onKeyDown={(e) => e.key === 'Enter' && applyHeight()}
               onBlur={applyHeight}
             />
-            <span className="muted small">az alterületek a padlóhoz rögzítve maradnak</span>
+            <span className="muted small">{t('roomEditor.heightNote')}</span>
           </div>
 
           <div className="form-row">
-            <label>Falak alapszíne</label>
+            <label>{t('roomEditor.wallColor')}</label>
             <ColorField value={groupColor} onChange={(c) => setRoomSurfacesBaseColor(roomId, c)} />
-            <span className="muted small">az összes oldalra (padló + falak)</span>
+            <span className="muted small">{t('roomEditor.wallColorNote')}</span>
           </div>
         </div>
       </div>

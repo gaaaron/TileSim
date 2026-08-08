@@ -7,6 +7,7 @@ import { renderSurfaceCanvas, subRegionTiles, surfaceImageUrls } from '../render
 import { imageIndexFor } from '../render/tilePicker';
 import { useImages } from '../render/imageCache';
 import { ColorField } from '../ui/ColorField';
+import { useT } from '../i18n/i18n';
 
 const MAX_W = 720;
 const MAX_H = 520;
@@ -84,6 +85,7 @@ export function SurfaceEditor() {
   const toggleSurfaceHidden = useStore((s) => s.toggleSurfaceHidden);
   const setSurfaceBaseColor = useStore((s) => s.setSurfaceBaseColor);
   const openSurfaceEditor = useStore((s) => s.openSurfaceEditor);
+  const t = useT();
 
   const surface = surfaces.find((s) => s.id === editingSurfaceId);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -519,17 +521,17 @@ export function SurfaceEditor() {
     <div className="modal-overlay" onClick={() => openSurfaceEditor(null)}>
       <div className="modal surface-editor" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <strong>Oldal szerkesztése — {surface.label}</strong>
+          <strong>{t('se.title', { label: surface.label })}</strong>
           <span className="muted">
             {Math.round(surface.widthCm)}×{Math.round(surface.heightCm)} cm
           </span>
-          <label className="vis-toggle" title="Az oldal alapszíne (csempe nélküli rész)">
-            Alapszín
+          <label className="vis-toggle" title={t('se.baseColorTitle')}>
+            {t('se.baseColor')}
             <ColorField value={surface.baseColor} onChange={(c) => setSurfaceBaseColor(surface.id, c)} />
           </label>
-          <label className="vis-toggle" title="A fal megjelenítése a 3D nézetben">
+          <label className="vis-toggle" title={t('se.visibleTitle')}>
             <input type="checkbox" checked={!surface.hidden} onChange={() => toggleSurfaceHidden(surface.id)} />
-            Látható
+            {t('se.visible')}
           </label>
           <button className="icon" onClick={() => openSurfaceEditor(null)}>
             ✕
@@ -540,45 +542,41 @@ export function SurfaceEditor() {
           <div className="editor-side">
             <div className="seg">
               <button className={mode === 'region' ? 'active' : ''} onClick={() => setMode('region')}>
-                Alterületek
+                {t('se.tabRegions')}
               </button>
               <button className={mode === 'cells' ? 'active' : ''} onClick={() => setMode('cells')}>
-                Cellák kijelölése
+                {t('se.tabCells')}
               </button>
             </div>
-            <p className="muted small">
-              {mode === 'region'
-                ? 'Üres helyre húzva új alterület. Csúcspontot húzva mozgatsz (Shift = derékszög), belül húzva az egészet mozgatod. Dupla katt egy élre = új pont; csúcspontra kattintva törölhető.'
-                : 'Kattints/húzz a cellák kijelöléséhez, majd rendelj hozzájuk csempét.'}
-            </p>
+            <p className="muted small">{mode === 'region' ? t('se.hintRegion') : t('se.hintCells')}</p>
 
-            <h4>Alterületek</h4>
+            <h4>{t('se.regions')}</h4>
             <div className="sub-list">
               {surface.subRegions.map((sub, i) => (
                 <div key={sub.id} className={'sub-item' + (sub.id === activeSub?.id ? ' active' : '')}>
                   <button className="link" onClick={() => selectSubRegion(sub.id)}>
-                    Alterület #{i + 1} ({getGenerator(sub.pattern.generator).label})
+                    {t('se.regionItem', { n: i + 1, pattern: t('pattern.' + sub.pattern.generator) })}
                   </button>
                   <button className="icon danger" onClick={() => removeSubRegion(surface.id, sub.id)}>
                     ✕
                   </button>
                 </div>
               ))}
-              {surface.subRegions.length === 0 && <p className="muted small">Még nincs alterület.</p>}
+              {surface.subRegions.length === 0 && <p className="muted small">{t('se.noRegions')}</p>}
             </div>
 
             {activeSub && (
               <div className="pattern-controls">
-                <h4>Méret (cm)</h4>
+                <h4>{t('se.size')}</h4>
                 <div className="resize-row">
-                  <div className="pivot-grid" title="Pivot: mi maradjon helyben átméretezéskor">
+                  <div className="pivot-grid" title={t('se.pivotTitle')}>
                     {[0, 1, 2].map((row) =>
                       [0, 1, 2].map((col) => (
                         <button
                           key={`${col}_${row}`}
                           className={'pivot-cell' + (pivot.col === col && pivot.row === row ? ' active' : '')}
                           onClick={() => setPivot({ col, row })}
-                          title="Pivot pont"
+                          title={t('se.pivotPoint')}
                         />
                       )),
                     )}
@@ -603,11 +601,11 @@ export function SurfaceEditor() {
                         onKeyDown={(e) => e.key === 'Enter' && resizeActiveSub()}
                       />
                     </div>
-                    <button onClick={resizeActiveSub}>Átméretez</button>
+                    <button onClick={resizeActiveSub}>{t('se.resize')}</button>
                   </div>
                 </div>
 
-                <h4>Pozíció (cm)</h4>
+                <h4>{t('se.pos')}</h4>
                 <div className="form-row">
                   <label className="muted">X</label>
                   <input
@@ -625,11 +623,11 @@ export function SurfaceEditor() {
                     onChange={(e) => setYText(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && moveActiveSubTo()}
                   />
-                  <button onClick={moveActiveSubTo}>Áthelyez</button>
+                  <button onClick={moveActiveSubTo}>{t('se.move')}</button>
                 </div>
 
-                <h4>Minta</h4>
-                <label>Típus</label>
+                <h4>{t('se.pattern')}</h4>
+                <label>{t('se.type')}</label>
                 <select
                   value={activeSub.pattern.generator}
                   onChange={(e) => {
@@ -643,22 +641,22 @@ export function SurfaceEditor() {
                 >
                   {allGenerators().map((g) => (
                     <option key={g.name} value={g.name}>
-                      {g.label}
+                      {t('pattern.' + g.name)}
                     </option>
                   ))}
                 </select>
 
-                <label>Alap csempe</label>
+                <label>{t('se.baseTile')}</label>
                 <select
                   value={activeSub.pattern.defaultTileTypeId ?? ''}
                   onChange={(e) =>
                     updateSubRegionPattern(surface.id, activeSub.id, { defaultTileTypeId: e.target.value || null })
                   }
                 >
-                  <option value="">— nincs —</option>
-                  {tileTypes.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name} ({t.widthCm}×{t.heightCm})
+                  <option value="">{t('se.none')}</option>
+                  {tileTypes.map((tt) => (
+                    <option key={tt.id} value={tt.id}>
+                      {tt.name} ({tt.widthCm}×{tt.heightCm})
                     </option>
                   ))}
                 </select>
@@ -671,10 +669,10 @@ export function SurfaceEditor() {
                       updateSubRegionPattern(surface.id, activeSub.id, { tileRotated: e.target.checked })
                     }
                   />
-                  Csempe 90°-kal elforgatva
+                  {t('se.tileRotated')}
                 </label>
 
-                <label>Elforgatás: {Math.round(activeSub.pattern.angleDeg ?? 0)}°</label>
+                <label>{t('se.rotation', { n: Math.round(activeSub.pattern.angleDeg ?? 0) })}</label>
                 <input
                   type="range"
                   min={0}
@@ -698,7 +696,7 @@ export function SurfaceEditor() {
                 {gen &&
                   Object.entries(gen.paramSpec).map(([key, spec]) => (
                     <div key={key} className="form-row">
-                      <label className="muted">{spec.label}</label>
+                      <label className="muted">{t('patternParam.' + key)}</label>
                       <input
                         type="range"
                         min={spec.min}
@@ -715,7 +713,7 @@ export function SurfaceEditor() {
                   ))}
 
                 <div className="form-row">
-                  <label className="muted">Eltolás u/v (cm)</label>
+                  <label className="muted">{t('se.offsetUV')}</label>
                   <input
                     type="number"
                     style={{ width: 56 }}
@@ -738,12 +736,12 @@ export function SurfaceEditor() {
                   />
                 </div>
 
-                <h4>Kijelölt cellák ({selectedCells.length})</h4>
+                <h4>{t('se.selectedCells', { n: selectedCells.length })}</h4>
                 <select value={assignTileId} onChange={(e) => setAssignTileId(e.target.value)}>
-                  <option value="">— válassz csempét —</option>
-                  {tileTypes.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
+                  <option value="">{t('se.chooseTile')}</option>
+                  {tileTypes.map((tt) => (
+                    <option key={tt.id} value={tt.id}>
+                      {tt.name}
                     </option>
                   ))}
                 </select>
@@ -752,20 +750,16 @@ export function SurfaceEditor() {
                   disabled={!assignTileId || selectedCells.length === 0}
                   onClick={() => assignTileToCells(surface.id, activeSub.id, selectedCells, assignTileId)}
                 >
-                  Csempe a kijelöltekhez
+                  {t('se.assignTile')}
                 </button>
-                <button
-                  disabled={!canStep}
-                  title="A kijelölt cella(k) textúrájának léptetése a csempe képei között"
-                  onClick={stepSelectedTextures}
-                >
-                  ⟳ Textúra léptetése
+                <button disabled={!canStep} title={t('se.stepTextureTitle')} onClick={stepSelectedTextures}>
+                  {t('se.stepTexture')}
                 </button>
-                <button onClick={() => setSelectedCells([])}>Kijelölés törlése</button>
+                <button onClick={() => setSelectedCells([])}>{t('se.clearSelection')}</button>
 
-                <h4>Textúra-kiosztás</h4>
-                <button title="Az alterület minden cellájára véletlen textúra a csempe képei közül" onClick={randomizeTextures}>
-                  🎲 Véletlen kiosztás
+                <h4>{t('se.textureAssign')}</h4>
+                <button title={t('se.randomTitle')} onClick={randomizeTextures}>
+                  {t('se.random')}
                 </button>
               </div>
             )}
@@ -793,7 +787,7 @@ export function SurfaceEditor() {
                     setMenu(null);
                   }}
                 >
-                  Pont törlése
+                  {t('se.deleteVertex')}
                 </button>
               </div>
             )}

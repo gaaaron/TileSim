@@ -13,6 +13,7 @@ import {
   uid,
 } from '../model/types';
 import { allSurfaces, roomForPoint } from '../model/geometry';
+import { tr } from '../i18n/i18n';
 import { loadModelBBox } from '../three/modelUtils';
 import {
   exportProjectBlob,
@@ -32,7 +33,7 @@ const DEFAULT_PROJECT_ID = 'default';
 function emptyProject(): Project {
   return {
     id: DEFAULT_PROJECT_ID,
-    name: 'Új projekt',
+    name: tr('name.project'),
     tileTypes: [],
     rooms: [],
     boxes: [],
@@ -344,7 +345,7 @@ export const useStore = create<State>((set, get) => {
       mutate((p) => {
         p.rooms.push({
           id: uid('room_'),
-          name: `Szoba ${p.rooms.length + 1}`,
+          name: `${tr('name.room')} ${p.rooms.length + 1}`,
           floorPolygon: polygon,
           heightCm,
         });
@@ -407,7 +408,7 @@ export const useStore = create<State>((set, get) => {
         }
         p.boxes.push({
           id: uid('box_'),
-          name: `Doboz ${p.boxes.length + 1}`,
+          name: `${tr('name.box')} ${p.boxes.length + 1}`,
           pos: { x: cx, y: 0, z: cz },
           size: { w: 60, h: 80, d: 60 },
           rotationY: 0,

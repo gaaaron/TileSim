@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { useStore } from '../store/projectStore';
+import { useT } from '../i18n/i18n';
 
 /** 3D objektumok: GLB feltöltés, modellből példány elhelyezése, elhelyezett objektumok listája. */
 export function ObjectsPanel() {
@@ -14,6 +15,7 @@ export function ObjectsPanel() {
 
   const fileInput = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
+  const t = useT();
 
   return (
     <div className="panel">
@@ -30,14 +32,14 @@ export function ObjectsPanel() {
           try {
             await addModelAsset(file);
           } catch (err) {
-            alert('A modell betöltése sikertelen: ' + (err as Error).message);
+            alert(t('objects.loadFailed', { msg: (err as Error).message }));
           } finally {
             setBusy(false);
           }
         }}
       />
       <button className="primary" disabled={busy} onClick={() => fileInput.current?.click()}>
-        {busy ? 'Betöltés…' : '+ Modell feltöltése (GLB/glTF)'}
+        {busy ? t('objects.loading') : t('objects.upload')}
       </button>
 
       {models.length > 0 && (
@@ -48,8 +50,8 @@ export function ObjectsPanel() {
               <span className="muted small">
                 {m.naturalSize.w}×{m.naturalSize.h}×{m.naturalSize.d} cm
               </span>
-              <button disabled={rooms.length === 0} title="Elhelyezés a szobában" onClick={() => addObject(m.id)}>
-                + Elhelyez
+              <button disabled={rooms.length === 0} title={t('objects.placeInRoom')} onClick={() => addObject(m.id)}>
+                {t('objects.place')}
               </button>
             </div>
           ))}
@@ -58,7 +60,7 @@ export function ObjectsPanel() {
 
       {objects.length > 0 && (
         <>
-          <h4>Elhelyezett</h4>
+          <h4>{t('objects.placed')}</h4>
           <div className="object-list">
             {objects.map((o) => (
               <div key={o.id} className={'object-item' + (o.id === selectedObjectId ? ' active' : '')}>
@@ -74,7 +76,7 @@ export function ObjectsPanel() {
         </>
       )}
 
-      <p className="muted small">Húzással mozgathatók az alaprajzon; méret/forgatás a popupban.</p>
+      <p className="muted small">{t('objects.hint')}</p>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../store/projectStore';
 import { RoomEditor } from './RoomEditor';
+import { useT } from '../i18n/i18n';
 
 /** Szobák: pontos méretű téglalap-szoba gyors létrehozása + lista/törlés. */
 export function RoomsPanel() {
@@ -14,6 +15,7 @@ export function RoomsPanel() {
   const [l, setL] = useState(300);
   const [h, setH] = useState(270);
   const [editRoomId, setEditRoomId] = useState<string | null>(null);
+  const t = useT();
 
   const addRect = () => {
     // origó-illesztett téglalap (cm), az XZ síkon
@@ -23,7 +25,7 @@ export function RoomsPanel() {
   return (
     <div className="panel">
       <div className="form-row">
-        <label className="muted">Téglalap (cm)</label>
+        <label className="muted">{t('rooms.rect')}</label>
       </div>
       <div className="form-row">
         <input type="number" value={w} min={1} style={{ width: 60 }} onChange={(e) => setW(+e.target.value)} />
@@ -31,20 +33,20 @@ export function RoomsPanel() {
         <input type="number" value={l} min={1} style={{ width: 60 }} onChange={(e) => setL(+e.target.value)} />
         <span className="muted">×</span>
         <input type="number" value={h} min={1} style={{ width: 56 }} onChange={(e) => setH(+e.target.value)} />
-        <span className="muted">mag.</span>
+        <span className="muted">{t('rooms.heightAbbr')}</span>
       </div>
       <button className="primary" onClick={addRect}>
-        + Téglalap szoba
+        {t('rooms.addRect')}
       </button>
-      <p className="muted small">Egyedi alakhoz: „Szoba rajzolása" az alaprajz nézetben.</p>
+      <p className="muted small">{t('rooms.customHint')}</p>
 
       <div className="room-list">
         {rooms.map((r) => (
-          <div key={r.id} className="room-item" onDoubleClick={() => setEditRoomId(r.id)} title="Dupla katt: szerkesztés">
+          <div key={r.id} className="room-item" onDoubleClick={() => setEditRoomId(r.id)} title={t('rooms.dblEdit')}>
             <input
               type="checkbox"
               checked={!roomHidden?.[r.id]}
-              title="Láthatóság"
+              title={t('rooms.visibility')}
               onChange={() => toggleRoomHidden(r.id)}
             />
             <button className="link" onClick={() => setEditRoomId(r.id)}>
@@ -56,7 +58,7 @@ export function RoomsPanel() {
             </button>
           </div>
         ))}
-        {rooms.length === 0 && <p className="muted small">Még nincs szoba.</p>}
+        {rooms.length === 0 && <p className="muted small">{t('rooms.empty')}</p>}
       </div>
 
       {editRoomId && <RoomEditor roomId={editRoomId} onClose={() => setEditRoomId(null)} />}

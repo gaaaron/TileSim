@@ -7,6 +7,7 @@ import {
   Vec2,
   Vec3,
 } from './types';
+import { tr } from '../i18n/i18n';
 
 // --- kis vektor-segédek (cm-ben dolgozunk, kivéve ahol world jelölve) ---
 const v3 = (x: number, y: number, z: number): Vec3 => ({ x, y, z });
@@ -63,7 +64,7 @@ export function floorSurface(room: Room): Surface {
   return {
     id: `${room.id}:floor`,
     kind: 'floor',
-    label: `${room.name} – padló`,
+    label: `${room.name} – ${tr('label.floor')}`,
     widthCm: bb.w,
     heightCm: bb.h,
     transform,
@@ -86,7 +87,7 @@ export function ceilingSurface(room: Room): Surface {
   return {
     id: `${room.id}:ceiling`,
     kind: 'ceiling',
-    label: `${room.name} – mennyezet`,
+    label: `${room.name} – ${tr('label.ceiling')}`,
     widthCm: bb.w,
     heightCm: bb.h,
     transform,
@@ -128,7 +129,7 @@ export function wallSurfaces(room: Room): Surface[] {
     surfaces.push({
       id: `${room.id}:wall:${i}`,
       kind: 'wall',
-      label: `${room.name} – fal #${i + 1}`,
+      label: `${room.name} – ${tr('label.wall')} #${i + 1}`,
       widthCm: len,
       heightCm: room.heightCm,
       transform,
@@ -187,7 +188,7 @@ export function boxFaceSurfaces(box: Box): Surface[] {
     return {
       id: `${box.id}:face:${f.key}`,
       kind: 'box-face' as const,
-      label: `${box.name} – ${f.label}`,
+      label: `${box.name} – ${tr('face.' + f.key)}`,
       widthCm: f.uSize,
       heightCm: f.vSize,
       transform,

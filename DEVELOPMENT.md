@@ -480,6 +480,9 @@ Az `i18n/i18n.ts` egy önálló, függőség nélküli i18n réteg:
 az érintett szakaszt és szükség esetén a gotchas-t (12). Új buktató → mindig a MIÉRT-tel. A végén vezesd a
 Changelog-ot. A dokumentáció magyarul készül; a kód-azonosítók angolul maradnak.
 
+A `README.md` **kétnyelvű** (felül angol, alul magyar), a két szakasz egymás tükre — ha az egyiket módosítod,
+a MÁSIKAT is módosítsd vele **szinkronban** (azonos szerkezet és tartalom).
+
 ## 16. Changelog
 - **2026-08-04** — **Többnyelvűség (magyar/angol).** Új `i18n/i18n.ts` (szótár + `useT()`/`tr()` + `useLangStore`).
   A nyelv a böngésző/rendszer nyelvéből töltődik (`navigator.language`; `hu*` → magyar, egyébként angol),

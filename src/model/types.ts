@@ -33,6 +33,8 @@ export interface TileType {
   color: string;
   /** Fényesség 0..1 (0 = matt, 1 = fényes). A 3D-ben az érdesség-térképet vezérli. */
   glossiness: number;
+  /** Világosság −1..1 (0 = eredeti, <0 sötétebb, >0 világosabb). A kép/szín fényerejét szabja. */
+  brightness?: number;
   /** Fuga vastagság mm-ben. */
   groutMm: number;
   /** Fuga szín. */

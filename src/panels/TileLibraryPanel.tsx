@@ -35,7 +35,10 @@ export function TileLibraryPanel() {
       </button>
 
       <div className="tile-list">
-        {tileTypes.map((tt) => (
+        {tileTypes.map((tt) => {
+          const bf = Math.max(0, 1 + (tt.brightness ?? 0));
+          const brightFilter = bf !== 1 ? `brightness(${bf})` : undefined;
+          return (
           <div key={tt.id} className="tile-card">
             <div className="tile-card-head">
               <button className="tile-edit-btn" onClick={() => setEditId(tt.id)} title={t('tilelib.edit')}>
@@ -52,10 +55,14 @@ export function TileLibraryPanel() {
 
             <div className="thumbs">
               {tt.images.map((img) => (
-                <img key={img.id} src={img.url} alt={img.name} className="thumb" />
+                <img key={img.id} src={img.url} alt={img.name} className="thumb" style={{ filter: brightFilter }} />
               ))}
               {tt.images.length === 0 && (
-                <span className="thumb" style={{ background: tt.color ?? '#c9c4b8' }} title={t('tilelib.plainColor')} />
+                <span
+                  className="thumb"
+                  style={{ background: tt.color ?? '#c9c4b8', filter: brightFilter }}
+                  title={t('tilelib.plainColor')}
+                />
               )}
             </div>
 
@@ -87,7 +94,8 @@ export function TileLibraryPanel() {
             />
             <button onClick={() => fileInputs.current[tt.id]?.click()}>{t('tilelib.uploadImage')}</button>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {editId && <TileInspector tileId={editId} onClose={() => setEditId(null)} />}

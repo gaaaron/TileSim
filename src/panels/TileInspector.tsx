@@ -77,6 +77,23 @@ export function TileInspector({ tileId, onClose }: Props) {
           </div>
 
           <div className="form-row">
+            <label>{t('tile.brightness')}</label>
+            <input
+              type="range"
+              min={-1}
+              max={1}
+              step={0.05}
+              style={{ flex: 1 }}
+              value={tile.brightness ?? 0}
+              onChange={(e) => updateTileType(tile.id, { brightness: +e.target.value })}
+            />
+            <span className="muted small">
+              {(tile.brightness ?? 0) > 0 ? '+' : ''}
+              {Math.round((tile.brightness ?? 0) * 100)}%
+            </span>
+          </div>
+
+          <div className="form-row">
             <label>{t('tile.grout')}</label>
             <input
               type="number"

@@ -106,6 +106,22 @@ function roughGray(gloss: number): number {
 }
 const gray = (v: number) => `rgb(${v},${v},${v})`;
 
+/** Világosság (−1..1) → multiplikatív szorzó a CSS brightness()-szel egyezően (0 = eredeti → 1.0). */
+function brightnessFactor(b: number | undefined): number {
+  return Math.max(0, 1 + (b ?? 0));
+}
+
+/** Hex szín világosítása/sötétítése multiplikatívan (a kép brightness()-ével egyező modell). */
+function adjustColor(hex: string, b: number | undefined): string {
+  const f = brightnessFactor(b);
+  if (f === 1) return hex;
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex.trim());
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const clamp = (v: number) => Math.max(0, Math.min(255, Math.round(v * f)));
+  return `rgb(${clamp((n >> 16) & 255)},${clamp((n >> 8) & 255)},${clamp(n & 255)})`;
+}
+
 /**
  * Egy felület színtextúrája + érdesség-térképe. (u,v) → canvas pixel: u jobbra, v lefelé.
  * A színnél kép híján a csempe `color`-ja; az érdesség-térkép a csempe `glossiness`-éből jön.
@@ -174,6 +190,8 @@ export function renderSurfaceCanvas(
       ctx.translate(cell.cx * ppc, cell.cy * ppc);
       if (cell.rotationDeg) ctx.rotate((cell.rotationDeg * Math.PI) / 180);
       if (img) {
+        const bf = brightnessFactor(tt?.brightness);
+        if (bf !== 1) ctx.filter = `brightness(${bf})`;
         if (flipImg) ctx.scale(1, -1); // fal: a kép álljon (a v-tengely felfelé mutat, a vászon lefelé rajzol)
         if (sub.pattern.tileRotated) {
           ctx.rotate(Math.PI / 2);
@@ -182,7 +200,7 @@ export function renderSurfaceCanvas(
           ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh);
         }
       } else {
-        ctx.fillStyle = tt?.color ?? (tt ? '#d8cdbb' : '#b9b3a6');
+        ctx.fillStyle = adjustColor(tt?.color ?? (tt ? '#d8cdbb' : '#b9b3a6'), tt?.brightness);
         ctx.fillRect(-dw / 2, -dh / 2, dw, dh);
       }
       ctx.restore();

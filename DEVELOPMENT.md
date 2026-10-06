@@ -98,8 +98,12 @@ App.tsx, main.tsx, styles.css, vite-env.d.ts
 
 ## 5. Adatmodell (`model/types.ts`)
 
-- **`TileType`**: `{ id, name, widthCm, heightCm, images: ImageRef[], color, glossiness, groutMm, groutColor }`.
+- **`TileType`**: `{ id, name, widthCm, heightCm, images: ImageRef[], color, glossiness, brightness?, groutMm, groutColor }`.
   A `color` kép híján a csempe sima színe; a `glossiness` (0..1) a 3D fényességet adja (érdesség-térképen át).
+  A `brightness` (−1..1, 0 = eredeti, opcionális) a csempe kép/szín **világosságát** szabja multiplikatívan
+  (a CSS `brightness()`-szel egyező modell): <0 sötétebb, >0 világosabb. A renderben a képnél `ctx.filter`,
+  sima színnél az `adjustColor()` csatornánkénti szorzás adja (`render/SurfaceTexture.ts`); a könyvtár-bélyegkép
+  CSS `filter: brightness()`-szel követi (`TileLibraryPanel.tsx`). Szerkesztő: „Világosság" csúszka a `TileInspector`-ban.
   Egy típushoz több kép is tartozhat → vegyes lerakás.
 - **`ImageRef`**: `{ id, name, url? }`. A blob az IndexedDB-ben él; az `url` futásidejű object URL
   (nem perzisztált; betöltéskor `hydrateImageUrls` állítja elő).
@@ -487,6 +491,12 @@ A `README.md` **kétnyelvű** (felül angol, alul magyar), a két szakasz egymá
 a MÁSIKAT is módosítsd vele **szinkronban** (azonos szerkezet és tartalom).
 
 ## 16. Changelog
+- **2026-10-06** — **Csempe világosság (brightness) állítás.** Új `TileType.brightness` (−1..1, 0 = eredeti,
+  opcionális) a kép/szín világosítására/**sötétítésére**. A szerkesztőben új „Világosság" csúszka
+  (`TileInspector`, −100%…+100%, előjeles %). A renderben (`render/SurfaceTexture.ts`) a kép `ctx.filter =
+  brightness(1+b)`-vel, a sima szín az új `adjustColor()` csatornánkénti szorzásával (CSS `brightness()`-szel
+  egyező modell). A könyvtár-bélyegkép (`TileLibraryPanel`) CSS `filter: brightness()`-szel követi. Új i18n kulcs:
+  `tile.brightness` (hu „Világosság" / en „Brightness"). Visszafelé kompatibilis (opcionális mező, hiány = 0).
 - **2026-08-04** — **Többnyelvűség (magyar/angol).** Új `i18n/i18n.ts` (szótár + `useT()`/`tr()` + `useLangStore`).
   A nyelv a böngésző/rendszer nyelvéből töltődik (`navigator.language`; `hu*` → magyar, egyébként angol),
   localStorage-ban felülírható a toolbar HU/EN gombjával (azonnali váltás, újratöltés nélkül). Minden UI-szöveg

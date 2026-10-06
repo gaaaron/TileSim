@@ -96,6 +96,7 @@ const hu: Dict = {
   'tile.colorHiddenImg': '(kép esetén nem látszik)',
   'tile.colorInstead': 'kép helyett ezzel renderel',
   'tile.gloss': 'Fényesség',
+  'tile.brightness': 'Világosság',
   'tile.grout': 'Fuga',
   'tile.mm': 'mm',
 
@@ -264,6 +265,7 @@ const en: Dict = {
   'tile.colorHiddenImg': '(hidden when an image is set)',
   'tile.colorInstead': 'rendered instead of an image',
   'tile.gloss': 'Glossiness',
+  'tile.brightness': 'Brightness',
   'tile.grout': 'Grout',
   'tile.mm': 'mm',
 
